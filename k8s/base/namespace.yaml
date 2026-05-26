@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fiap-cloud-games
+  labels:
+    app.kubernetes.io/part-of: fiap-cloud-games
+    app.kubernetes.io/managed-by: kubectl
