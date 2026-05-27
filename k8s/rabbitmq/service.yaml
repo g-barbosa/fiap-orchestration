@@ -1,0 +1,19 @@
+# Service para o RabbitMQ - Configuração Mínima
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: fiap-cloud-games
+  labels:
+    app: rabbitmq
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5672
+      targetPort: 5672
+      name: amqp
+    - port: 15672
+      targetPort: 15672
+      name: management
+  selector:
+    app: rabbitmq

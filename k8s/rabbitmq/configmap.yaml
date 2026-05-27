@@ -1,0 +1,20 @@
+# ConfigMap para o RabbitMQ
+# Armazena configurações NÃO sensíveis
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+  namespace: fiap-cloud-games
+  labels:
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/component: messaging
+    app.kubernetes.io/part-of: fiap-cloud-games
+data:
+  # Arquivo de configuração do RabbitMQ
+  rabbitmq.conf: |
+    default_vhost = /
+    vm_memory_high_watermark.relative = 0.7
+    loopback_users.guest = false
+  # Plugins habilitados
+  enabled_plugins: |
+    [rabbitmq_management,rabbitmq_prometheus].
