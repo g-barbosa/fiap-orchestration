@@ -41,6 +41,24 @@ fiap-notifications-api/          # API de Notificações
 │   └── service.yaml             # Service - exposição
 ├── src/
 └── Dockerfile
+
+fiap-catalog-api/                # API de Catálogo de Jogos
+├── k8s/
+│   ├── configmap.yaml           # ConfigMap - configs não sensíveis
+│   ├── secret.yaml              # Secret - dados sensíveis
+│   ├── deployment.yaml          # Deployment - gerenciamento de Pods
+│   └── service.yaml             # Service - exposição
+├── src/
+└── Dockerfile
+
+fiap-payments-api/               # API de Pagamentos
+├── k8s/
+│   ├── configmap.yaml           # ConfigMap - configs não sensíveis
+│   ├── secret.yaml              # Secret - dados sensíveis
+│   ├── deployment.yaml          # Deployment - gerenciamento de Pods
+│   └── service.yaml             # Service - exposição
+├── src/
+└── Dockerfile
 ```
 
 ## 🚀 Pré-requisitos
@@ -56,6 +74,8 @@ fiap-notifications-api/          # API de Notificações
 # 1. Build das imagens
 cd ../fiap-users-api && docker build -t fiap-users-api:latest .
 cd ../fiap-notifications-api && docker build -t fiap-notifications-api:latest .
+cd ../fiap-catalog-api && docker build -t fiap-catalog-api:latest .
+cd ../fiap-payments-api && docker build -t fiap-payments-api:latest .
 
 # 2. Criar namespace
 kubectl apply -f k8s/base/
@@ -66,6 +86,8 @@ kubectl apply -f k8s/rabbitmq/
 # 4. Deploy dos projetos
 kubectl apply -f ../fiap-users-api/k8s/
 kubectl apply -f ../fiap-notifications-api/k8s/
+kubectl apply -f ../fiap-catalog-api/k8s/
+kubectl apply -f ../fiap-payments-api/k8s/
 
 # 5. Verificar status
 kubectl get all -n fiap-cloud-games
@@ -80,6 +102,8 @@ kubectl get all -n fiap-cloud-games
 # Verificar logs
 kubectl logs -l app=users-api -n fiap-cloud-games -f
 kubectl logs -l app=notifications-api -n fiap-cloud-games -f
+kubectl logs -l app=catalog-api -n fiap-cloud-games -f
+kubectl logs -l app=payments-api -n fiap-cloud-games -f
 kubectl logs -l app=rabbitmq -n fiap-cloud-games -f
 ```
 
@@ -93,6 +117,14 @@ kubectl port-forward svc/users-api 8080:80 -n fiap-cloud-games
 # Notifications API (porta 8081)
 kubectl port-forward svc/notifications-api 8081:80 -n fiap-cloud-games
 # Acesse: http://localhost:8081/swagger
+
+# Catalog API (porta 8082)
+kubectl port-forward svc/catalog-api 8082:80 -n fiap-cloud-games
+# Acesse: http://localhost:8082/swagger
+
+# Payments API (porta 8083)
+kubectl port-forward svc/payments-api 8083:80 -n fiap-cloud-games
+# Acesse: http://localhost:8083/swagger
 
 # RabbitMQ Management (porta 15672)
 kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
@@ -123,6 +155,8 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 |---------|-----------|--------|
 | users-api | API de Usuários e Autenticação | ✅ Configurado |
 | notifications-api | API de Notificações | ✅ Configurado |
+| catalog-api | API de Catálogo de Jogos | ✅ Configurado |
+| payments-api | API de Pagamentos | ✅ Configurado |
 | rabbitmq | Message Broker (infraestrutura) | ✅ Configurado |
 | sqlserver | Banco de Dados (via users-api) | ✅ Configurado |
 
