@@ -17,11 +17,6 @@ fiap-orchestration/              # Este repositório (orquestrador)
 │       ├── deployment.yaml
 │       ├── service.yaml
 │       └── pvc.yaml
-├── scripts/
-│   ├── deploy-all.ps1           # Deploy completo (Windows)
-│   ├── deploy-all.sh            # Deploy completo (Linux/Mac)
-│   ├── cleanup.ps1              # Cleanup (Windows)
-│   └── cleanup.sh               # Cleanup (Linux/Mac)
 └── README.md
 
 fiap-users-api/                  # API de Usuários
