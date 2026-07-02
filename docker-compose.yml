@@ -1,0 +1,194 @@
+version: '3.8'
+
+services:
+  # ===========================================
+  # INFRAESTRUTURA
+  # ===========================================
+  
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: rabbitmq123
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - fiap-network
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: sqlserver
+    hostname: sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Mysql2022!"
+      MSSQL_PID: "Developer"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Mysql2022!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - fiap-network
+
+  # ===========================================
+  # MICROSSERVIÇOS
+  # ===========================================
+
+  users-api:
+    build:
+      context: ../fiap-users-api
+      dockerfile: Dockerfile
+    image: fiap-users-api:latest
+    container_name: users-api
+    hostname: users-api
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesDb;User ID=SA;Password=Mysql2022!;TrustServerCertificate=true"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: admin
+      RabbitMq__Password: rabbitmq123
+      Jwt__Key: minha-chave-jwt-super-secreta-2026-api-segura
+      Jwt__Issuer: FiapCloudGames
+      Jwt__Audience: FiapCloudGames
+      Jwt__ExpiracaoMinutos: 60
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - fiap-network
+
+  notifications-api:
+    build:
+      context: ../fiap-notifications-api
+      dockerfile: Dockerfile
+    image: fiap-notifications-api:latest
+    container_name: notifications-api
+    hostname: notifications-api
+    ports:
+      - "8081:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: admin
+      RabbitMq__Password: rabbitmq123
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - fiap-network
+
+  catalog-api:
+    build:
+      context: ../fiap-catalog-api
+      dockerfile: Dockerfile
+    image: fiap-catalog-api:latest
+    container_name: catalog-api
+    hostname: catalog-api
+    ports:
+      - "8082:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesCatalogDb;User ID=SA;Password=Mysql2022!;TrustServerCertificate=true"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: admin
+      RabbitMq__Password: rabbitmq123
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - fiap-network
+
+  payments-api:
+    build:
+      context: ../fiap-payments-api
+      dockerfile: Dockerfile
+    image: fiap-payments-api:latest
+    container_name: payments-api
+    hostname: payments-api
+    ports:
+      - "8083:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesPaymentsDb;User ID=SA;Password=Mysql2022!;TrustServerCertificate=true"
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Port: 5672
+      RabbitMq__Username: admin
+      RabbitMq__Password: rabbitmq123
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - fiap-network
+
+# ===========================================
+# REDE
+# ===========================================
+networks:
+  fiap-network:
+    driver: bridge
+    name: fiap-cloud-games-network
+
+# ===========================================
+# VOLUMES
+# ===========================================
+volumes:
+  rabbitmq_data:
+    name: fiap-rabbitmq-data
+  sqlserver_data:
+    name: fiap-sqlserver-data

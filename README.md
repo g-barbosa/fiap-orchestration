@@ -1,6 +1,10 @@
 # FIAP Orchestration
 
-Repositório centralizado de orquestração Kubernetes para os projetos FIAP Cloud Games.
+Repositório centralizado de orquestração para os projetos FIAP Cloud Games.
+
+**Suporta duas formas de deploy:**
+- **Docker Compose**: Para desenvolvimento local rápido (`docker-compose up`)
+- **Kubernetes**: Para ambientes de produção e testes avançados
 
 **Cada projeto mantém seus próprios manifestos Kubernetes em sua pasta `/k8s`. Este repositório apenas orquestra e executa todos os recursos de forma centralizada.**
 
@@ -8,6 +12,7 @@ Repositório centralizado de orquestração Kubernetes para os projetos FIAP Clo
 
 ```
 fiap-orchestration/              # Este repositório (orquestrador)
+├── docker-compose.yml           # Orquestração Docker (dev local)
 ├── k8s/
 │   ├── base/
 │   │   └── namespace.yaml       # Namespace compartilhado
@@ -58,10 +63,47 @@ fiap-payments-api/               # API de Pagamentos
 
 ## 🚀 Pré-requisitos
 
-- Docker Desktop com Kubernetes habilitado
-- kubectl configurado
+- Docker Desktop instalado
+- Docker Compose (incluído no Docker Desktop)
+- kubectl configurado (para deploy em Kubernetes)
 
-## 🎯 Deploy
+---
+
+## 🐳 Deploy com Docker Compose (Recomendado para Dev)
+
+A forma mais rápida de subir toda a aplicação localmente:
+
+```bash
+# Subir toda a aplicação (build + run)
+docker-compose up --build
+
+# Subir em background
+docker-compose up -d --build
+
+# Ver logs
+docker-compose logs -f
+
+# Parar todos os containers
+docker-compose down
+
+# Parar e remover volumes (reset completo)
+docker-compose down -v
+```
+
+### 📍 Endpoints após docker-compose up
+
+| Serviço | URL | Descrição |
+|---------|-----|-----------|
+| Users API | http://localhost:8080/swagger | API de Usuários |
+| Notifications API | http://localhost:8081/swagger | API de Notificações |
+| Catalog API | http://localhost:8082/swagger | API de Catálogo |
+| Payments API | http://localhost:8083/swagger | API de Pagamentos |
+| RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/rabbitmq123) |
+| SQL Server | localhost:1433 | Banco de Dados (SA/Mysql2022!) |
+
+---
+
+## ☸️ Deploy com Kubernetes
 
 ### Deploy manual
 
