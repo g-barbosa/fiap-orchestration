@@ -1,0 +1,17 @@
+# Service do Grafana
+# Expõe a UI do Grafana (porta 3000) dentro do cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: fiap-cloud-games
+  labels:
+    app: grafana
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+      name: http
+  selector:
+    app: grafana
