@@ -221,6 +221,49 @@ services:
     networks:
       - fiap-network
 
+  # ===========================================
+  # OBSERVABILIDADE
+  # ===========================================
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: prometheus
+    hostname: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    depends_on:
+      - users-api
+      - catalog-api
+    networks:
+      - fiap-network
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/fiap-apis-overview.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - fiap-network
+
 # ===========================================
 # REDE
 # ===========================================
@@ -241,3 +284,7 @@ volumes:
     name: fiap-redis-data
   mongo_data:
     name: fiap-mongo-data
+  prometheus_data:
+    name: fiap-prometheus-data
+  grafana_data:
+    name: fiap-grafana-data

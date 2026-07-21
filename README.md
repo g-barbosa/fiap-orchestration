@@ -18,7 +18,14 @@ fiap-orchestration/              # Este repositório (orquestrador)
 │   │   └── namespace.yaml       # Namespace compartilhado
 │   ├── rabbitmq/                # Infraestrutura compartilhada
 │   ├── redis/                   # Cache (CatalogAPI)
-│   └── mongodb/                 # NoSQL avaliações (CatalogAPI)
+│   ├── mongodb/                 # NoSQL avaliações (CatalogAPI)
+│   ├── prometheus/              # Scrape de métricas
+│   └── grafana/                 # Dashboard de observabilidade
+├── prometheus/
+│   └── prometheus.yml
+├── grafana/
+│   ├── dashboards/
+│   └── provisioning/
 └── README.md
 
 fiap-users-api/                  # API de Usuários
@@ -98,6 +105,8 @@ docker-compose down -v
 | RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/rabbitmq123) |
 | Redis | localhost:6379 | Cache |
 | MongoDB | localhost:27017 | Avaliações (admin/mongo123) |
+| Prometheus | http://localhost:9090 | Métricas (scrape Users + Catalog) |
+| Grafana | http://localhost:3000 | Dashboard (admin/admin) |
 | SQL Server | localhost:1433 | Banco de Dados (SA/Mysql2022!) |
 
 ### ✅ Testar Redis + Mongo (CatalogAPI)
@@ -117,6 +126,25 @@ docker exec redis redis-cli TTL "fiap-catalog:jogos:all"
 
 Passo a passo completo: ver README do `fiap-catalog-api` (seção **Como testar Redis e MongoDB**).
 
+### ✅ Observabilidade — Opção A (Prometheus + Grafana)
+
+Stack escolhida: **código aberto (Opção A)** do Tech Challenge Fase 3.
+
+- **UsersAPI** e **CatalogAPI** expõem `GET /metrics` via `prometheus-net.AspNetCore`
+- **Prometheus** faz scrape a cada 15s
+- **Grafana** provisiona o dashboard `FIAP Cloud Games - APIs Overview` com:
+  - Latência (p50 / p95)
+  - Throughput (req/s por status HTTP)
+  - Taxa de erros (5xx % e 4xx/s)
+
+**Como validar**
+
+1. `docker compose up -d --build`
+2. Gere tráfego: http://localhost:8080/swagger e http://localhost:8082/swagger
+3. Confira targets: http://localhost:9090/targets (users-api e catalog-api = UP)
+4. Abra o Grafana: http://localhost:3000 (admin / admin) → pasta **FIAP** → dashboard overview
+5. Métricas raw: http://localhost:8080/metrics e http://localhost:8082/metrics
+
 ---
 
 ## ☸️ Deploy com Kubernetes
@@ -133,10 +161,12 @@ cd ../fiap-payments-api && docker build -t fiap-payments-api:latest .
 # 2. Criar namespace
 kubectl apply -f k8s/base/
 
-# 3. Deploy infraestrutura (RabbitMQ, Redis, MongoDB)
+# 3. Deploy infraestrutura (RabbitMQ, Redis, MongoDB, Prometheus, Grafana)
 kubectl apply -f k8s/rabbitmq/
 kubectl apply -f k8s/redis/
 kubectl apply -f k8s/mongodb/
+kubectl apply -f k8s/prometheus/
+kubectl apply -f k8s/grafana/
 
 # 4. Deploy dos projetos
 kubectl apply -f ../fiap-users-api/k8s/
@@ -215,6 +245,8 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 | rabbitmq | Message Broker (infraestrutura) | ✅ Configurado |
 | redis | Cache (CatalogAPI) | ✅ Configurado |
 | mongodb | NoSQL - Avaliações (CatalogAPI) | ✅ Configurado |
+| prometheus | Coleta de métricas (Users + Catalog) | ✅ Configurado |
+| grafana | Dashboard de observabilidade | ✅ Configurado |
 | sqlserver | Banco de Dados (via users-api) | ✅ Configurado |
 
 ## 🐰 Conexão com RabbitMQ
