@@ -1,0 +1,19 @@
+# PersistentVolumeClaim (PVC)
+# Solicita armazenamento persistente ao cluster Kubernetes.
+# Sem o PVC, os dados do Redis seriam perdidos ao reiniciar o Pod.
+# O Deployment monta este volume em /data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: fiap-cloud-games
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: fiap-cloud-games
+spec:
+  accessModes:
+    - ReadWriteOnce # um nó por vez pode montar o volume
+  resources:
+    requests:
+      storage: 1Gi

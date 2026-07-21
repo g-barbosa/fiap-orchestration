@@ -16,12 +16,9 @@ fiap-orchestration/              # Este repositório (orquestrador)
 ├── k8s/
 │   ├── base/
 │   │   └── namespace.yaml       # Namespace compartilhado
-│   └── rabbitmq/                # Infraestrutura compartilhada
-│       ├── configmap.yaml
-│       ├── secret.yaml
-│       ├── deployment.yaml
-│       ├── service.yaml
-│       └── pvc.yaml
+│   ├── rabbitmq/                # Infraestrutura compartilhada
+│   ├── redis/                   # Cache (CatalogAPI)
+│   └── mongodb/                 # NoSQL avaliações (CatalogAPI)
 └── README.md
 
 fiap-users-api/                  # API de Usuários
@@ -99,7 +96,26 @@ docker-compose down -v
 | Catalog API | http://localhost:8082/swagger | API de Catálogo |
 | Payments API | http://localhost:8083/swagger | API de Pagamentos |
 | RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/rabbitmq123) |
+| Redis | localhost:6379 | Cache |
+| MongoDB | localhost:27017 | Avaliações (admin/mongo123) |
 | SQL Server | localhost:1433 | Banco de Dados (SA/Mysql2022!) |
+
+### ✅ Testar Redis + Mongo (CatalogAPI)
+
+1. Abra http://localhost:8082/swagger (`fiap-catalog-api`).
+2. Crie um jogo: `POST /api/Jogos`.
+3. Liste duas vezes: `GET /api/Jogos`.
+4. Valide o Redis no terminal:
+
+```bash
+docker exec redis redis-cli KEYS "*"
+docker exec redis redis-cli HGETALL "fiap-catalog:jogos:all"
+docker exec redis redis-cli TTL "fiap-catalog:jogos:all"
+```
+
+5. Crie/liste avaliações: `POST` / `GET /api/Jogos/{id}/avaliacoes` (MongoDB).
+
+Passo a passo completo: ver README do `fiap-catalog-api` (seção **Como testar Redis e MongoDB**).
 
 ---
 
@@ -117,8 +133,10 @@ cd ../fiap-payments-api && docker build -t fiap-payments-api:latest .
 # 2. Criar namespace
 kubectl apply -f k8s/base/
 
-# 3. Deploy infraestrutura (RabbitMQ)
+# 3. Deploy infraestrutura (RabbitMQ, Redis, MongoDB)
 kubectl apply -f k8s/rabbitmq/
+kubectl apply -f k8s/redis/
+kubectl apply -f k8s/mongodb/
 
 # 4. Deploy dos projetos
 kubectl apply -f ../fiap-users-api/k8s/
@@ -195,6 +213,8 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 | catalog-api | API de Catálogo de Jogos | ✅ Configurado |
 | payments-api | API de Pagamentos | ✅ Configurado |
 | rabbitmq | Message Broker (infraestrutura) | ✅ Configurado |
+| redis | Cache (CatalogAPI) | ✅ Configurado |
+| mongodb | NoSQL - Avaliações (CatalogAPI) | ✅ Configurado |
 | sqlserver | Banco de Dados (via users-api) | ✅ Configurado |
 
 ## 🐰 Conexão com RabbitMQ

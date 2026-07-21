@@ -1,0 +1,18 @@
+# Service do MongoDB
+# Expõe o MongoDB dentro do cluster via DNS interno "mongodb:27017".
+# Type ClusterIP: acessível só por outros Pods (ex.: catalog-api), sem porta pública.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: fiap-cloud-games
+  labels:
+    app: mongodb
+spec:
+  type: ClusterIP
+  ports:
+    - port: 27017
+      targetPort: 27017
+      name: mongodb
+  selector:
+    app: mongodb
