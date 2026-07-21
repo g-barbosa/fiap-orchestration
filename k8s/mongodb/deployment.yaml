@@ -1,0 +1,55 @@
+# Deployment do MongoDB
+# Mantém o Pod do NoSQL em execução (réplicas, imagem, recursos e credenciais).
+# Usado pelo CatalogAPI para persistir avaliações de jogos (documentos flexíveis).
+# Credenciais vêm do Secret; o volume mongo-data (PVC) persiste em /data/db.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: fiap-cloud-games
+  labels:
+    app: mongodb
+    app.kubernetes.io/name: mongodb
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: fiap-cloud-games
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+              name: mongodb
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secrets
+                  key: MONGO_INITDB_ROOT_USERNAME
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongodb-secrets
+                  key: MONGO_INITDB_ROOT_PASSWORD
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+      volumes:
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: mongo-data

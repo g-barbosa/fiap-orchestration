@@ -1,0 +1,18 @@
+# Service do Redis
+# Expõe o Redis dentro do cluster via DNS interno "redis:6379".
+# Type ClusterIP: acessível só por outros Pods (ex.: catalog-api), sem porta pública.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: fiap-cloud-games
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      name: redis
+  selector:
+    app: redis

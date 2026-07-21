@@ -1,0 +1,44 @@
+# Deployment do Redis
+# Mantém o Pod do cache em execução (réplicas, imagem, recursos).
+# Usado pelo CatalogAPI para cachear listagens e detalhes de jogos.
+# O volume redis-data (PVC) persiste os dados em /data.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: fiap-cloud-games
+  labels:
+    app: redis
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: fiap-cloud-games
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-data
