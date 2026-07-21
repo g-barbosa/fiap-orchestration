@@ -1,0 +1,70 @@
+# Deployment do Grafana
+# Dashboard de latência, throughput e erros (Opção A - Tech Challenge Fase 3).
+# Datasource e dashboard são provisionados via ConfigMaps.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: fiap-cloud-games
+  labels:
+    app: grafana
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: fiap-cloud-games
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.2.0
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-secrets
+                  key: admin-password
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+            - name: GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH
+              value: /var/lib/grafana/dashboards/fiap-apis-overview.json
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "300m"
+          volumeMounts:
+            - name: grafana-datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: grafana-dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: grafana-dashboards
+              mountPath: /var/lib/grafana/dashboards
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+      volumes:
+        - name: grafana-datasources
+          configMap:
+            name: grafana-datasources
+        - name: grafana-dashboards-provider
+          configMap:
+            name: grafana-dashboards-provider
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: grafana-data

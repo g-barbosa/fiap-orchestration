@@ -1,0 +1,17 @@
+# PersistentVolumeClaim (PVC) do Grafana
+# Persiste dashboards/usuários entre reinícios do Pod.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: fiap-cloud-games
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: fiap-cloud-games
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
