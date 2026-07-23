@@ -1,0 +1,77 @@
+# Kong Helm Chart Values
+# Used for Kubernetes deployment via Helm
+# Reference: https://github.com/Kong/charts
+
+replicaCount: 1
+
+image:
+  repository: kong
+  tag: "3.4-alpine"
+  pullPolicy: IfNotPresent
+
+admin:
+  enabled: true
+  type: ClusterIP
+  port: 8001
+  nodePort: null
+
+proxy:
+  enabled: true
+  type: LoadBalancer
+  externalIPs: []
+  ports:
+    http:
+      port: 8000
+      containerPort: 8000
+    https:
+      port: 8443
+      containerPort: 8443
+
+postgresql:
+  enabled: true
+  auth:
+    username: kong
+    password: "kong-db-password-secure"
+    database: kong
+  primary:
+    persistence:
+      enabled: true
+      size: 1Gi
+
+ingressController:
+  enabled: false
+
+plugins:
+  - jwt
+  - cors
+  - rate-limiting
+  - request-transformer
+  - response-transformer
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+
+livenessProbe:
+  httpGet:
+    path: /status
+    port: 8001
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /status
+    port: 8001
+  initialDelaySeconds: 15
+  periodSeconds: 10

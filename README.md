@@ -8,6 +8,117 @@ Repositório centralizado de orquestração para os projetos FIAP Cloud Games.
 
 **Cada projeto mantém seus próprios manifestos Kubernetes em sua pasta `/k8s`. Este repositório apenas orquestra e executa todos os recursos de forma centralizada.**
 
+---
+
+## 🚀 Início Rápido
+
+### Local (Docker Compose)
+```bash
+# 1. Iniciar todos os serviços
+docker-compose up -d
+
+# 2. Aguardar Kong estar pronto (~30 segundos)
+# Verificar: curl http://localhost:8001/status
+
+# 3. Configurar serviços e rotas Kong (ver seção Kong Setup abaixo)
+
+# 4. Testar roteamento com curl (ver seção Kong Routing Tests abaixo)
+```
+
+### Pontos de Acesso
+- **Kong Gateway**: http://localhost:8000
+- **Kong Admin**: http://localhost:8001
+- **Serviços** (via Kong):
+  - Users: http://localhost:8000/api/users
+  - Catalog: http://localhost:8000/api/catalogs
+  - Payments: http://localhost:8000/api/payments
+
+### Kong Setup (Passos Manuais)
+```bash
+# Verificar se Kong está pronto
+curl http://localhost:8001/status
+
+# Criar serviço: users-api
+curl -X POST http://localhost:8001/services \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "users-api",
+    "url": "http://users-api:8080",
+    "connect_timeout": 5000,
+    "write_timeout": 30000,
+    "read_timeout": 30000
+  }'
+
+# Criar rota para users-api
+curl -X POST http://localhost:8001/services/users-api/routes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paths": ["/api/users", "/api/users/*"]
+  }'
+
+# Criar serviço: catalog-api
+curl -X POST http://localhost:8001/services \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "catalog-api",
+    "url": "http://catalog-api:8080",
+    "connect_timeout": 5000,
+    "write_timeout": 30000,
+    "read_timeout": 30000
+  }'
+
+# Criar rotas para catalog-api
+curl -X POST http://localhost:8001/services/catalog-api/routes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paths": ["/api/catalogs", "/api/catalogs/*", "/api/games", "/api/games/*"]
+  }'
+
+# Criar serviço: payments-api
+curl -X POST http://localhost:8001/services \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "payments-api",
+    "url": "http://payments-api:8080",
+    "connect_timeout": 5000,
+    "write_timeout": 30000,
+    "read_timeout": 30000
+  }'
+
+# Criar rotas para payments-api
+curl -X POST http://localhost:8001/services/payments-api/routes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "paths": ["/api/payments", "/api/payments/*"]
+  }'
+```
+
+### Testes de Roteamento Kong
+```bash
+# Verificar Kong proxy
+curl http://localhost:8000/api/users/health
+
+# Verificar Kong admin
+curl http://localhost:8001/status
+
+# Listar serviços
+curl http://localhost:8001/services
+
+# Listar rotas
+curl http://localhost:8001/routes
+
+# Testar roteamento Users API
+curl http://localhost:8000/api/users/health
+
+# Testar roteamento Catalog API
+curl http://localhost:8000/api/catalogs/games
+
+# Testar roteamento Payments API
+curl http://localhost:8000/api/payments/health
+```
+
+---
+
 ## 📁 Estrutura
 
 ```
@@ -16,6 +127,10 @@ fiap-orchestration/              # Este repositório (orquestrador)
 ├── k8s/
 │   ├── base/
 │   │   └── namespace.yaml       # Namespace compartilhado
+│   ├── kong/
+│   │   ├── values.yaml          # Helm chart values para Kong
+│   │   ├── configmap.yaml       # Configuração Kong K8s
+│   │   └── README.md            # Guia de deploy Kong
 │   ├── rabbitmq/                # Infraestrutura compartilhada
 │   ├── redis/                   # Cache (CatalogAPI)
 │   └── mongodb/                 # NoSQL avaliações (CatalogAPI)
