@@ -107,13 +107,30 @@ services:
     networks:
       - fiap-network
 
-  kong:
-    image: kong:3.4-alpine
-    container_name: kong
-    hostname: kong
+  kong-migrations:
+    image: kong:3.4
+    container_name: kong-migrations
+    command: kong migrations bootstrap
     depends_on:
       postgres-kong:
         condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: postgres-kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong-password-secure
+      KONG_PG_DATABASE: kong
+    networks:
+      - fiap-network
+    restart: "no"
+
+  kong:
+    image: kong:3.4
+    container_name: kong
+    hostname: kong
+    depends_on:
+      kong-migrations:
+        condition: service_completed_successfully
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: postgres-kong
@@ -135,7 +152,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
     networks:
       - fiap-network
 

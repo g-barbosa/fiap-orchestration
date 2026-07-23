@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   repository: kong
-  tag: "3.4-alpine"
+  tag: "3.4"
   pullPolicy: IfNotPresent
 
 admin:
