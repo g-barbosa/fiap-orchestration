@@ -29,11 +29,12 @@ docker-compose up -d
 - **Kong Gateway**: http://localhost:8000
 - **Kong Admin**: http://localhost:8001
 - **Serviços** (via Kong):
-  - Users: http://localhost:8000/api/users
-  - Catalog: http://localhost:8000/api/catalogs
-  - Payments: http://localhost:8000/api/payments
+  - Users: http://localhost:8000/api/Usuarios
+  - Catalog (Jogos): http://localhost:8000/api/Jogos
+  - Catalog (Bibliotecas): http://localhost:8000/api/Bibliotecas
 
 ### Kong Setup (Passos Manuais)
+
 ```bash
 # Verificar se Kong está pronto
 curl http://localhost:8001/status
@@ -53,7 +54,8 @@ curl -X POST http://localhost:8001/services \
 curl -X POST http://localhost:8001/services/users-api/routes \
   -H "Content-Type: application/json" \
   -d '{
-    "paths": ["/api/users", "/api/users/*"]
+    "paths": ["/api/Usuarios", "/api/Usuarios/*"],
+    "strip_path": false
   }'
 
 # Criar serviço: catalog-api
@@ -71,7 +73,8 @@ curl -X POST http://localhost:8001/services \
 curl -X POST http://localhost:8001/services/catalog-api/routes \
   -H "Content-Type: application/json" \
   -d '{
-    "paths": ["/api/catalogs", "/api/catalogs/*", "/api/games", "/api/games/*"]
+    "paths": ["/api/Jogos", "/api/Jogos/*", "/api/Bibliotecas", "/api/Bibliotecas/*"],
+    "strip_path": false
   }'
 
 # Criar serviço: payments-api
@@ -85,18 +88,21 @@ curl -X POST http://localhost:8001/services \
     "read_timeout": 30000
   }'
 
-# Criar rotas para payments-api
-curl -X POST http://localhost:8001/services/payments-api/routes \
-  -H "Content-Type: application/json" \
-  -d '{
-    "paths": ["/api/payments", "/api/payments/*"]
   }'
+
+# ⚠️ Pagamentos e Notificações ainda não têm controllers implementados
+# Quando implementados, adicionar suas rotas aqui
 ```
+```
+
+#### ⚠️ Importante: strip_path: false
+
+Por padrão, Kong remove o prefixo do path antes de encaminhar à API (ex: `/api/Usuarios` vira `/`). Como nossas APIs esperam o path completo (`/api/Usuarios`), **sempre use `strip_path: false`** nas rotas.
 
 ### Testes de Roteamento Kong
 ```bash
-# Verificar Kong proxy
-curl http://localhost:8000/api/users/health
+# Verificar Kong proxy - Users API
+curl http://localhost:8000/api/Usuarios
 
 # Verificar Kong admin
 curl http://localhost:8001/status
@@ -108,13 +114,13 @@ curl http://localhost:8001/services
 curl http://localhost:8001/routes
 
 # Testar roteamento Users API
-curl http://localhost:8000/api/users/health
+curl http://localhost:8000/api/Usuarios/health
 
-# Testar roteamento Catalog API
-curl http://localhost:8000/api/catalogs/games
+# Testar roteamento Catalog API - Jogos
+curl http://localhost:8000/api/Jogos
 
-# Testar roteamento Payments API
-curl http://localhost:8000/api/payments/health
+# Testar roteamento Catalog API - Bibliotecas
+curl http://localhost:8000/api/Bibliotecas
 ```
 
 ---
@@ -206,10 +212,11 @@ docker-compose down -v
 
 | Serviço | URL | Descrição |
 |---------|-----|-----------|
-| Users API | http://localhost:8080/swagger | API de Usuários |
-| Notifications API | http://localhost:8081/swagger | API de Notificações |
-| Catalog API | http://localhost:8082/swagger | API de Catálogo |
-| Payments API | http://localhost:8083/swagger | API de Pagamentos |
+| Users API | http://localhost:8080/swagger | API de Usuários - `/api/Usuarios` |
+| Notifications API | http://localhost:8081/swagger | API de Notificações (sem rotas Kong ainda) |
+| Catalog API - Jogos | http://localhost:8082/swagger | API de Catálogo - `/api/Jogos` |
+| Catalog API - Bibliotecas | http://localhost:8082/swagger | API de Catálogo - `/api/Bibliotecas` |
+| Payments API | http://localhost:8083/swagger | API de Pagamentos (sem rotas Kong ainda) |
 | RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/rabbitmq123) |
 | Redis | localhost:6379 | Cache |
 | MongoDB | localhost:27017 | Avaliações (admin/mongo123) |
