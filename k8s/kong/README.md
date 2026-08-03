@@ -4,6 +4,8 @@
 
 Kong é o API Gateway para FIAP Cloud Games - atua como ponto de entrada único para todas as requisições externas e as roteia para os microserviços apropriados.
 
+**Konga** é a interface web de administração para gerenciar Kong de forma visual.
+
 ### Arquitetura
 
 ```
@@ -16,8 +18,8 @@ Kong é o API Gateway para FIAP Cloud Games - atua como ponto de entrada único 
          │
     ┌────▼─────┐
     │   Kong    │ ← API Gateway
-    │  Gateway  │   Admin: Porta 8001
-    └────┬─────┘
+    │  Gateway  │   Admin API: Porta 8001
+    └────┬─────┘   Konga UI: Porta 1337
          │
     ┌────┴───────────┬──────────────┐
     │                │              │
@@ -29,26 +31,36 @@ Kong é o API Gateway para FIAP Cloud Games - atua como ponto de entrada único 
 
 ## Início Rápido (Desenvolvimento Local)
 
-### 1. Iniciar Kong com Docker Compose
+### 1. Iniciar Kong e Konga com Docker Compose
 
 ```bash
 cd fiap-orchestration
 
-# Iniciar todos os serviços incluindo Kong
+# Iniciar todos os serviços incluindo Kong e Konga
 docker-compose up -d
 
 # Verificar se Kong está rodando
 curl http://localhost:8001/status
+
+# Acessar Konga (interface web)
+# Abrir: http://localhost:1337
 ```
 
-### 2. Configurar Rotas (Manual)
+### 2. Configurar Rotas (Manual via API ou Konga UI)
+
+**Opção 1: Via Konga (Mais Fácil)**
+1. Acesse http://localhost:1337
+2. Configure uma nova conexão para o Kong Admin em `http://kong:8001`
+3. Use a interface para criar serviços e rotas
+
+**Opção 2: Via Kong Admin API**
 
 ```bash
 # Verificar se Kong Admin está respondendo
 curl http://localhost:8001/status
 
 # Criar serviços e rotas usando Kong Admin API
-# Veja a seção "Kong Admin API - Referência Rápida" abaixo
+```# Veja a seção "Kong Admin API - Referência Rápida" abaixo
 ```
 
 ### 3. Testar Roteamento

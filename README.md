@@ -28,6 +28,7 @@ docker-compose up -d
 ### Pontos de Acesso
 - **Kong Gateway**: http://localhost:8000
 - **Kong Admin**: http://localhost:8001
+- **Konga (Gerenciador Kong)**: http://localhost:1337
 - **Serviços** (via Kong):
   - Users: http://localhost:8000/api/Usuarios
   - Catalog (Jogos): http://localhost:8000/api/Jogos
