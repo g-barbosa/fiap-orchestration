@@ -29,10 +29,18 @@ docker-compose up -d
 - **Kong Gateway**: http://localhost:8000
 - **Kong Admin**: http://localhost:8001
 - **Konga (Gerenciador Kong)**: http://localhost:1337
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (user: admin, password: admin)
+- **RabbitMQ**: http://localhost:15672 (user: admin, password: rabbitmq123)
 - **Serviços** (via Kong):
   - Users: http://localhost:8000/api/Usuarios
   - Catalog (Jogos): http://localhost:8000/api/Jogos
   - Catalog (Bibliotecas): http://localhost:8000/api/Bibliotecas
+- **Métricas Diretas**:
+  - Users API: http://localhost:8080/metrics
+  - Catalog API: http://localhost:8082/metrics
+  - Payments API: http://localhost:8083/metrics
+  - Notifications API: http://localhost:8081/metrics
 
 ### Kong Setup (Passos Manuais)
 
@@ -99,6 +107,150 @@ curl -X POST http://localhost:8001/services \
 #### ⚠️ Importante: strip_path: false
 
 Por padrão, Kong remove o prefixo do path antes de encaminhar à API (ex: `/api/Usuarios` vira `/`). Como nossas APIs esperam o path completo (`/api/Usuarios`), **sempre use `strip_path: false`** nas rotas.
+
+---
+
+## 📊 Observabilidade (Prometheus + Grafana)
+
+### Arquitetura
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Aplicações (.NET)                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ Users    │  │ Catalog  │  │ Payments │              │
+│  │ API      │  │ API      │  │ API      │              │
+│  │ :8080    │  │ :8080    │  │ :8080    │              │
+│  │/metrics  │  │/metrics  │  │/metrics  │              │
+│  └──────────┘  └──────────┘  └──────────┘              │
+│       ↓               ↓               ↓                  │
+└──────────────────────────────────────────────────────────┘
+              ↓
+        ┌──────────────┐
+        │  Prometheus  │
+        │  :9090       │
+        │ (scrapes)    │
+        └──────────────┘
+              ↓
+        ┌──────────────┐
+        │   Grafana    │
+        │  :3000       │
+        │ (visualiza)  │
+        └──────────────┘
+```
+
+### Instrumentation nos Serviços
+
+Todos os 4 serviços foram instrumentados com **prometheus-net.AspNetCore v8.2.1**:
+
+1. **Users API** ✅
+2. **Catalog API** ✅
+3. **Payments API** ✅
+4. **Notifications API** ✅
+
+Cada serviço expõe métricas no endpoint `/metrics`:
+```bash
+curl http://localhost:8080/metrics      # Users
+curl http://localhost:8082/metrics      # Catalog
+curl http://localhost:8083/metrics      # Payments
+curl http://localhost:8081/metrics      # Notifications
+```
+
+### Métricas Coletadas
+
+**HTTP Requests:**
+- `http_request_duration_seconds` - Latência de requisições
+- `http_requests_total` - Total de requisições por status code
+
+**Exemplos de Query Prometheus:**
+```promql
+# P95 Latência
+histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+# Taxa de requisições (throughput)
+rate(http_requests_total[5m])
+
+# Taxa de erros 5xx
+rate(http_requests_total{status=~"5.."}[5m])
+
+# Taxa de erros 4xx
+rate(http_requests_total{status=~"4.."}[5m])
+```
+
+### Grafana Dashboards
+
+**Dashboard Pré-configurado:** `FIAP Cloud Games - Observabilidade`
+
+**Painéis Inclusos:**
+1. **Latência de Requisições HTTP (Percentis)** - P95 e P99 por serviço
+2. **Taxa de Requisições (Throughput)** - Requisições/s por método
+3. **Taxa de Erros HTTP** - Erros 4xx e 5xx separados
+4. **Distribuição de Status HTTP** - Pizza com distribuição de status codes
+
+**Acesso:**
+- URL: http://localhost:3000
+- Usuário: `admin`
+- Senha: `admin`
+
+**Importar Dashboard Customizado:**
+1. Abrir Grafana (http://localhost:3000)
+2. Dashboard → New → Import
+3. Colar JSON ou fazer upload de `grafana/provisioning/dashboards/fiap-observabilidade.json`
+
+### Configuração Prometheus
+
+**Arquivo:** `prometheus.yml`
+
+**Scrape Targets:**
+- `users-api:8080/metrics` - Interval: 10s
+- `catalog-api:8080/metrics` - Interval: 10s
+- `payments-api:8080/metrics` - Interval: 10s
+- `notifications-api:8080/metrics` - Interval: 10s
+- `rabbitmq:15692/metrics` - Interval: 15s
+- `kong:8001/metrics` - Interval: 15s
+
+**Retention:** 15 dias (padrão do Prometheus)
+
+### Logs Estruturados (Serilog)
+
+Todos os serviços usam **Serilog** para logging estruturado:
+
+```csharp
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .CreateLogger();
+```
+
+**Sinks Configurados:**
+- Console (stdout)
+- File (arquivo local)
+
+**CorrelationId:** Rastreamento de requisições distribuído automaticamente
+
+### Alertas Futuros
+
+Para ativar alertas no Prometheus:
+
+1. Criar arquivo `alerting-rules.yml`:
+```yaml
+groups:
+  - name: fiap-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        annotations:
+          summary: "Alta taxa de erros em {{ $labels.service }}"
+```
+
+2. Referenciar em `prometheus.yml`:
+```yaml
+rule_files:
+  - /etc/prometheus/alerting-rules.yml
+```
+
+---
 
 ### Testes de Roteamento Kong
 ```bash
