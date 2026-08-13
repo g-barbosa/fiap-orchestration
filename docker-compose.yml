@@ -344,25 +344,6 @@ services:
       - fiap-network
 
   # ===========================================
-  # KONG INITIALIZATION
-  # ===========================================
-
-  kong-init:
-    image: alpine:latest
-    container_name: kong-init
-    depends_on:
-      kong:
-        condition: service_healthy
-    environment:
-      KONG_ADMIN_URL: http://kong:8001
-    volumes:
-      - ./scripts/kong-init.sh:/tmp/kong-init.sh:ro
-    command: sh -c "apk add --no-cache curl jq && sh /tmp/kong-init.sh"
-    restart: "no"
-    networks:
-      - fiap-network
-
-  # ===========================================
   # OBSERVABILIDADE
   # ===========================================
 
