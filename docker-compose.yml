@@ -89,7 +89,7 @@ services:
   # ===========================================
 
   postgres-kong:
-    image: postgres:15-alpine
+    image: postgres:11-alpine
     container_name: postgres-kong
     hostname: postgres-kong
     environment:
@@ -98,10 +98,11 @@ services:
       POSTGRES_PASSWORD: kong-password-secure
     volumes:
       - postgres_kong_data:/var/lib/postgresql/data
+      - ./init-konga-db.sql:/docker-entrypoint-initdb.d/01-init-konga.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kong"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 5
       start_period: 10s
     networks:
@@ -131,6 +132,8 @@ services:
     depends_on:
       kong-migrations:
         condition: service_completed_successfully
+      postgres-kong:
+        condition: service_healthy
     environment:
       KONG_DATABASE: postgres
       KONG_PG_HOST: postgres-kong
@@ -156,12 +159,32 @@ services:
     networks:
       - fiap-network
 
+  konga-migrations:
+    image: pantsel/konga:latest
+    container_name: konga-migrations
+    command:
+      - "-c"
+      - "prepare"
+      - "-a"
+      - "postgres"
+      - "-u"
+      - "postgresql://kong:kong-password-secure@postgres-kong:5432/konga"
+    depends_on:
+      postgres-kong:
+        condition: service_healthy
+    networks:
+      - fiap-network
+    restart: "no"
+
   konga:
     image: pantsel/konga:latest
     container_name: konga
     hostname: konga
     depends_on:
-      - kong
+      konga-migrations:
+        condition: service_completed_successfully
+      kong:
+        condition: service_healthy
     ports:
       - "1337:1337"
     environment:
@@ -175,7 +198,7 @@ services:
     volumes:
       - konga_data:/var/lib/konga
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:1337"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:1337"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -320,17 +343,28 @@ services:
     networks:
       - fiap-network
 
-# ===========================================
-# REDE
-# ===========================================
-networks:
-  fiap-network:
-    driver: bridge
-    name: fiap-cloud-games-network
+  # ===========================================
+  # KONG INITIALIZATION
+  # ===========================================
 
-# ===========================================
-# OBSERVABILIDADE
-# ===========================================
+  kong-init:
+    image: alpine:latest
+    container_name: kong-init
+    depends_on:
+      kong:
+        condition: service_healthy
+    environment:
+      KONG_ADMIN_URL: http://kong:8001
+    volumes:
+      - ./scripts/kong-init.sh:/tmp/kong-init.sh:ro
+    command: sh -c "apk add --no-cache curl jq && sh /tmp/kong-init.sh"
+    restart: "no"
+    networks:
+      - fiap-network
+
+  # ===========================================
+  # OBSERVABILIDADE
+  # ===========================================
 
   prometheus:
     image: prom/prometheus:latest
@@ -379,6 +413,14 @@ networks:
       start_period: 10s
     networks:
       - fiap-network
+
+# ===========================================
+# REDE
+# ===========================================
+networks:
+  fiap-network:
+    driver: bridge
+    name: fiap-cloud-games-network
 
 # ===========================================
 # VOLUMES

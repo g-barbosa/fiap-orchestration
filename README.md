@@ -26,17 +26,18 @@ docker-compose up -d
 ```
 
 ### Pontos de Acesso
-- **Kong Gateway**: http://localhost:8000
-- **Kong Admin**: http://localhost:8001
+- **Kong Gateway (Proxy)**: http://localhost:8000 ← **Use AQUI para requisições**
+- **Kong Admin API**: http://localhost:8001 ← Apenas gerenciamento
 - **Konga (Gerenciador Kong)**: http://localhost:1337
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000 (user: admin, password: admin)
 - **RabbitMQ**: http://localhost:15672 (user: admin, password: rabbitmq123)
-- **Serviços** (via Kong):
+- **Serviços** (via Kong Gateway na porta 8000):
   - Users: http://localhost:8000/api/Usuarios
   - Catalog (Jogos): http://localhost:8000/api/Jogos
   - Catalog (Bibliotecas): http://localhost:8000/api/Bibliotecas
-- **Métricas Diretas**:
+  - Payments: http://localhost:8000/api/Pagamentos
+- **Métricas Diretas** (bypass Kong):
   - Users API: http://localhost:8080/metrics
   - Catalog API: http://localhost:8082/metrics
   - Payments API: http://localhost:8083/metrics
