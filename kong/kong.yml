@@ -1,0 +1,53 @@
+# Prefixos /users e /catalog (strip_path: true) → APIs recebem /api/...
+# JWT: POST cadastro/login sem token; demais rotas exigem Bearer.
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: users-api
+    url: http://users-api:8080
+    routes:
+      - name: users-public
+        paths:
+          - /users
+        strip_path: true
+        methods:
+          - POST
+      - name: users-protected
+        paths:
+          - /users
+        strip_path: true
+        methods:
+          - GET
+          - PUT
+          - PATCH
+          - DELETE
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              secret_is_base64: false
+              claims_to_verify:
+                - exp
+
+  - name: catalog-api
+    url: http://catalog-api:8080
+    routes:
+      - name: catalog-protected
+        paths:
+          - /catalog
+        strip_path: true
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              secret_is_base64: false
+              claims_to_verify:
+                - exp
+
+consumers:
+  - username: fiap-cloud-games
+    jwt_secrets:
+      - algorithm: HS256
+        key: FiapCloudGames
+        secret: minha-chave-jwt-super-secreta-2026-api-segura

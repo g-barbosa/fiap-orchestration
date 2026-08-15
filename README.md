@@ -20,9 +20,9 @@ docker-compose up -d
 # 2. Aguardar Kong estar pronto (~30 segundos)
 # Verificar: curl http://localhost:8001/status
 
-# 3. Configurar serviços e rotas Kong (ver seção Kong Setup abaixo)
-
-# 4. Testar roteamento com curl (ver seção Kong Routing Tests abaixo)
+# 3. Rotas + JWT: import automático (kong-config / kong/kong.yml)
+#    Konga: http://localhost:1337
+# 4. Testar JWT (seção abaixo) e roteamento
 ```
 
 ### Pontos de Acesso
@@ -33,9 +33,9 @@ docker-compose up -d
 - **Grafana**: http://localhost:3000 (user: admin, password: admin)
 - **RabbitMQ**: http://localhost:15672 (user: admin, password: rabbitmq123)
 - **Serviços** (via Kong Gateway na porta 8000):
-  - Users: http://localhost:8000/api/Usuarios
-  - Catalog (Jogos): http://localhost:8000/api/Jogos
-  - Catalog (Bibliotecas): http://localhost:8000/api/Bibliotecas
+  - Users: http://localhost:8000/users/api/Usuarios
+  - Catalog (Jogos): http://localhost:8000/catalog/api/Jogos
+  - Catalog (Bibliotecas): http://localhost:8000/catalog/api/Bibliotecas
   - Payments: http://localhost:8000/api/Pagamentos
 - **Métricas Diretas** (bypass Kong):
   - Users API: http://localhost:8080/metrics
@@ -44,6 +44,19 @@ docker-compose up -d
   - Notifications API: http://localhost:8081/metrics
 
 ### Kong Setup (Passos Manuais)
+
+Rotas e **JWT** também são importados de `kong/kong.yml` no `docker compose up` (serviço `kong-config`). Os curls abaixo só são necessários se o import falhar.
+
+**Teste JWT (Git Bash, uma linha):**
+
+```bash
+curl -i http://localhost:8000/catalog/api/Jogos
+curl -i -X POST http://localhost:8000/users/api/Usuarios -H "Content-Type: application/json" -d '{"nome":"Gabriel","email":"gabriel@fiap.com","senha":"Senha@123"}'
+curl -s -X POST http://localhost:8000/users/api/Usuarios/login -H "Content-Type: application/json" -d '{"email":"gabriel@fiap.com","senha":"Senha@123"}'
+curl -i http://localhost:8000/catalog/api/Jogos -H "Authorization: Bearer SEU_TOKEN"
+```
+
+Sem token em `/catalog/api/Jogos` → **401**. Com o `token` do login → **200**.
 
 ```bash
 # Verificar se Kong está pronto
@@ -105,9 +118,9 @@ curl -X POST http://localhost:8001/services \
 ```
 ```
 
-#### ⚠️ Importante: strip_path: false
+#### Prefixos `/users` e `/catalog`
 
-Por padrão, Kong remove o prefixo do path antes de encaminhar à API (ex: `/api/Usuarios` vira `/`). Como nossas APIs esperam o path completo (`/api/Usuarios`), **sempre use `strip_path: false`** nas rotas.
+O `kong.yml` versionado usa `strip_path: true` nesses prefixos. Exemplo: `GET /users/api/Usuarios` chega na UsersAPI como `/api/Usuarios`. Os curls manuais abaixo (Admin API) são o setup antigo do grupo, sem JWT.
 
 ---
 
@@ -256,7 +269,7 @@ rule_files:
 ### Testes de Roteamento Kong
 ```bash
 # Verificar Kong proxy - Users API
-curl http://localhost:8000/api/Usuarios
+curl http://localhost:8000/users/api/Usuarios
 
 # Verificar Kong admin
 curl http://localhost:8001/status
@@ -268,13 +281,13 @@ curl http://localhost:8001/services
 curl http://localhost:8001/routes
 
 # Testar roteamento Users API
-curl http://localhost:8000/api/Usuarios/health
+curl http://localhost:8000/users/api/Usuarios/health
 
 # Testar roteamento Catalog API - Jogos
-curl http://localhost:8000/api/Jogos
+curl http://localhost:8000/catalog/api/Jogos
 
 # Testar roteamento Catalog API - Bibliotecas
-curl http://localhost:8000/api/Bibliotecas
+curl http://localhost:8000/catalog/api/Bibliotecas
 ```
 
 ---
@@ -295,7 +308,10 @@ fiap-orchestration/              # Este repositório (orquestrador)
 │   ├── redis/                   # Cache (CatalogAPI)
 │   ├── mongodb/                 # NoSQL avaliações (CatalogAPI)
 │   ├── prometheus/              # Scrape de métricas
-│   └── grafana/                 # Dashboard de observabilidade
+│   ├── grafana/                 # Dashboard de observabilidade
+│   └── kong/                    # API Gateway (rotas + JWT)
+├── kong/
+│   └── kong.yml                 # Config declarativa (compose)
 ├── prometheus/
 │   └── prometheus.yml
 ├── grafana/
@@ -378,18 +394,33 @@ docker-compose down -v
 | Catalog API - Jogos | http://localhost:8082/swagger | API de Catálogo - `/api/Jogos` |
 | Catalog API - Bibliotecas | http://localhost:8082/swagger | API de Catálogo - `/api/Bibliotecas` |
 | Payments API | http://localhost:8083/swagger | API de Pagamentos (sem rotas Kong ainda) |
+| **Kong (entrada pública)** | http://localhost:8000 | API Gateway (Users + Catalog) |
+| Kong Admin | http://localhost:8001 | Admin API (debug; não use em produção) |
+| Notifications API | http://localhost:8081/swagger | API de Notificações |
+| Payments API | http://localhost:8083/swagger | API de Pagamentos |
 | RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/rabbitmq123) |
 | Redis | localhost:6379 | Cache |
 | MongoDB | localhost:27017 | Avaliações (admin/mongo123) |
-| Prometheus | http://localhost:9090 | Métricas (scrape Users + Catalog) |
+| Prometheus | http://localhost:9090 | Métricas (scrape interno Users + Catalog) |
 | Grafana | http://localhost:3000 | Dashboard (admin/admin) |
 | SQL Server | localhost:1433 | Banco de Dados (SA/Mysql2022!) |
 
+UsersAPI e CatalogAPI também estão em 8080/8082 (Swagger). O vídeo do TC deve usar o Kong em **8000**.
+
+Rotas do Gateway (`strip_path: true` — prefixo `/users` ou `/catalog` é removido; a API recebe `/api/...`):
+
+| Gateway | Upstream |
+|---------|----------|
+| `POST /users/api/Usuarios` | UsersAPI cadastro (sem JWT) |
+| `POST /users/api/Usuarios/login` | UsersAPI login (sem JWT) |
+| `GET\|PUT\|PATCH\|DELETE /users/*` | UsersAPI (JWT obrigatório) |
+| `/catalog/*` | CatalogAPI (JWT obrigatório) |
+
 ### ✅ Testar Redis + Mongo (CatalogAPI)
 
-1. Abra http://localhost:8082/swagger (`fiap-catalog-api`).
-2. Crie um jogo: `POST /api/Jogos`.
-3. Liste duas vezes: `GET /api/Jogos`.
+1. Obtenha um JWT (cadastro + login via Kong) — ver seção **API Gateway**.
+2. Crie um jogo: `POST http://localhost:8000/catalog/api/Jogos` com `Authorization: Bearer <token>`.
+3. Liste duas vezes: `GET http://localhost:8000/catalog/api/Jogos`.
 4. Valide o Redis no terminal:
 
 ```bash
@@ -398,9 +429,123 @@ docker exec redis redis-cli HGETALL "fiap-catalog:jogos:all"
 docker exec redis redis-cli TTL "fiap-catalog:jogos:all"
 ```
 
-5. Crie/liste avaliações: `POST` / `GET /api/Jogos/{id}/avaliacoes` (MongoDB).
+5. Crie/liste avaliações: `POST` / `GET /catalog/api/Jogos/{id}/avaliacoes` (MongoDB).
 
-Passo a passo completo: ver README do `fiap-catalog-api` (seção **Como testar Redis e MongoDB**).
+Passo a passo extra: README do `fiap-catalog-api` (seção **Como testar Redis e MongoDB**).
+
+### ✅ API Gateway — Kong + JWT
+
+Entrada única para UsersAPI e CatalogAPI. Plugin JWT usa a mesma `Jwt:Key` / `Jwt:Issuer` (`FiapCloudGames`) do UsersAPI.
+
+**Como obter o JWT e validar**
+
+O Kong **não gera** o token. Quem gera é o UsersAPI no `POST /users/api/Usuarios/login`. A resposta JSON tem o campo `token`. Esse valor substitui `SEU_TOKEN`.
+
+**Passo 0 — stack no ar**
+
+```bash
+cd fiap-orchestration
+docker compose up -d --build
+```
+
+Aguarde o container `kong` ficar healthy. A URL pública é `http://localhost:8000` (HTTP, não HTTPS).
+
+**Passo 1 — confirmar que o Gateway exige token**
+
+```bash
+curl -i http://localhost:8000/catalog/api/Jogos
+```
+
+Esperado: **401 Unauthorized**. Sem `Authorization`, o Kong bloqueia o Catalog.
+
+**Passo 2 — cadastrar um usuário (público, sem token)**
+
+Cadastro e login são as únicas rotas `/users` liberadas (só `POST`).
+
+No **Git Bash**, cole **uma linha só** (não use `^` nem `` ` `` — isso quebra o `-H` e gera **415**):
+
+```bash
+curl -i -X POST http://localhost:8000/users/api/Usuarios -H "Content-Type: application/json" -d '{"nome":"Gabriel","email":"gabriel@fiap.com","senha":"Senha@123"}'
+```
+
+O JSON vai entre aspas simples `'...'`. Esperado: **200** com um `id`. Se o e-mail já existir, pule para o passo 3.
+
+**Passo 3 — fazer login e copiar o token**
+
+```bash
+curl -s -X POST http://localhost:8000/users/api/Usuarios/login -H "Content-Type: application/json" -d '{"email":"gabriel@fiap.com","senha":"Senha@123"}'
+```
+
+Resposta típica:
+
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxxx.yyyyy"
+}
+```
+
+Copie **somente** o valor de `token` (a string longa que começa com `eyJ`). Não copie as aspas.
+
+Se aparecer `"Credenciais inválidas"`, o cadastro não gravou — rode o passo 2 de novo.
+
+Opcional, guardar o token no Git Bash:
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8000/users/api/Usuarios/login -H "Content-Type: application/json" -d '{"email":"gabriel@fiap.com","senha":"Senha@123"}' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+echo "$TOKEN"
+```
+
+**Passo 4 — chamar o Catalog com o Bearer**
+
+Há um **espaço** depois de `Bearer`. Cole o JWT no lugar de `SEU_TOKEN`, ou use `$TOKEN` se rodou o atalho acima:
+
+```bash
+curl -i http://localhost:8000/catalog/api/Jogos -H "Authorization: Bearer SEU_TOKEN"
+```
+
+```bash
+curl -i http://localhost:8000/catalog/api/Jogos -H "Authorization: Bearer $TOKEN"
+```
+
+Esperado: **200** e a lista de jogos (JSON).
+
+**Erros comuns**
+
+| Sintoma | Causa |
+|---------|--------|
+| 415 Unsupported Media Type | Quebrou o `curl` com `^` ou `` ` `` no Git Bash — o `Content-Type` não foi enviado |
+| Credenciais inválidas | Cadastro não rodou (ou e-mail/senha diferentes) — faça o passo 2 antes |
+| 401 no Catalog | Esqueceu o header, digitou `SEU_TOKEN` literal, ou colou aspas junto |
+| 401 depois do login | Token expirado (~60 min) — faça login de novo |
+| 404 no login | URL errada: precisa ser `/users/api/Usuarios/login` via porta **8000** |
+| Connection refused | Kong não subiu — `docker compose ps` e veja o serviço `kong` |
+
+Swagger das APIs (interno):
+
+```bash
+# Kubernetes
+kubectl port-forward svc/users-api 8080:80 -n fiap-cloud-games
+kubectl port-forward svc/catalog-api 8082:80 -n fiap-cloud-games
+```
+
+### ✅ Observabilidade — Opção A (Prometheus + Grafana)
+
+Stack escolhida: **código aberto (Opção A)** do Tech Challenge Fase 3.
+
+- **UsersAPI** e **CatalogAPI** expõem `GET /metrics` via `prometheus-net.AspNetCore`
+- **Prometheus** faz scrape a cada 15s
+- **Grafana** provisiona o dashboard `FIAP Cloud Games - APIs Overview` com:
+  - Latência (p50 / p95)
+  - Throughput (req/s por status HTTP)
+  - Taxa de erros (5xx % e 4xx/s)
+
+**Como validar**
+
+1. `docker compose up -d --build`
+2. Gere tráfego via Gateway: `GET http://localhost:8000/catalog/api/Jogos` (com JWT) e login em `POST /users/api/Usuarios/login`
+3. Confira targets: http://localhost:9090/targets (users-api e catalog-api = UP)
+4. Abra o Grafana: http://localhost:3000 (admin / admin) → pasta **FIAP** → dashboard overview
+5. Métricas raw (rede interna): Prometheus faz scrape em `users-api:8080/metrics` e `catalog-api:8080/metrics`
 
 ### ✅ Observabilidade — Opção A (Prometheus + Grafana)
 
@@ -437,12 +582,13 @@ cd ../fiap-payments-api && docker build -t fiap-payments-api:latest .
 # 2. Criar namespace
 kubectl apply -f k8s/base/
 
-# 3. Deploy infraestrutura (RabbitMQ, Redis, MongoDB, Prometheus, Grafana)
+# 3. Deploy infraestrutura (RabbitMQ, Redis, MongoDB, Prometheus, Grafana, Kong)
 kubectl apply -f k8s/rabbitmq/
 kubectl apply -f k8s/redis/
 kubectl apply -f k8s/mongodb/
 kubectl apply -f k8s/prometheus/
 kubectl apply -f k8s/grafana/
+kubectl apply -f k8s/kong/
 
 # 4. Deploy dos projetos
 kubectl apply -f ../fiap-users-api/k8s/
@@ -471,25 +617,26 @@ kubectl logs -l app=rabbitmq -n fiap-cloud-games -f
 ## 🌐 Acessar os Serviços
 
 ```bash
-# Users API (porta 8080)
+# Kong (entrada pública — NodePort 30080)
+kubectl port-forward svc/kong-proxy 8000:8000 -n fiap-cloud-games
+# Acesse: http://localhost:8000/users/api/Usuarios e http://localhost:8000/catalog/api/Jogos
+
+# Swagger interno (não é exposição pública)
 kubectl port-forward svc/users-api 8080:80 -n fiap-cloud-games
-# Acesse: http://localhost:8080/swagger
+kubectl port-forward svc/catalog-api 8082:80 -n fiap-cloud-games
 
 # Notifications API (porta 8081)
 kubectl port-forward svc/notifications-api 8081:80 -n fiap-cloud-games
-# Acesse: http://localhost:8081/swagger
-
-# Catalog API (porta 8082)
-kubectl port-forward svc/catalog-api 8082:80 -n fiap-cloud-games
-# Acesse: http://localhost:8082/swagger
 
 # Payments API (porta 8083)
 kubectl port-forward svc/payments-api 8083:80 -n fiap-cloud-games
-# Acesse: http://localhost:8083/swagger
 
 # RabbitMQ Management (porta 15672)
 kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 # Acesse: http://localhost:15672 (admin / rabbitmq123)
+
+# Grafana
+kubectl port-forward svc/grafana 3000:3000 -n fiap-cloud-games
 ```
 
 ## 📝 Convenções para Novos Projetos
@@ -523,6 +670,7 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 | mongodb | NoSQL - Avaliações (CatalogAPI) | ✅ Configurado |
 | prometheus | Coleta de métricas (Users + Catalog) | ✅ Configurado |
 | grafana | Dashboard de observabilidade | ✅ Configurado |
+| kong | API Gateway (JWT + rotas Users/Catalog) | ✅ Configurado |
 | sqlserver | Banco de Dados (via users-api) | ✅ Configurado |
 
 ## 🐰 Conexão com RabbitMQ

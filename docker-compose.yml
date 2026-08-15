@@ -159,6 +159,28 @@ services:
     networks:
       - fiap-network
 
+  # Importa rotas + JWT (kong/kong.yml)
+  kong-config:
+    image: kong:3.4
+    container_name: kong-config
+    restart: "no"
+    command: kong config db_import /etc/kong/kong.yml
+    volumes:
+      - ./kong/kong.yml:/etc/kong/kong.yml:ro
+    depends_on:
+      kong:
+        condition: service_healthy
+      postgres-kong:
+        condition: service_healthy
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: postgres-kong
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kong-password-secure
+      KONG_PG_DATABASE: kong
+    networks:
+      - fiap-network
+
   konga-migrations:
     image: pantsel/konga:latest
     container_name: konga-migrations
@@ -345,7 +367,6 @@ services:
       start_period: 15s
     networks:
       - fiap-network
-
 
   # ===========================================
   # OBSERVABILIDADE

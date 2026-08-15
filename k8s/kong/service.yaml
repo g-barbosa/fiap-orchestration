@@ -1,0 +1,37 @@
+# Service do Kong (proxy público)
+# Type NodePort para acesso externo; APIs Users/Catalog permanecem ClusterIP.
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-proxy
+  namespace: fiap-cloud-games
+  labels:
+    app: kong
+    app.kubernetes.io/name: kong
+    app.kubernetes.io/component: api-gateway
+spec:
+  type: NodePort
+  ports:
+    - port: 8000
+      targetPort: 8000
+      nodePort: 30080
+      name: proxy
+  selector:
+    app: kong
+---
+# Service do Admin API (somente interno / port-forward)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong-admin
+  namespace: fiap-cloud-games
+  labels:
+    app: kong
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8001
+      targetPort: 8001
+      name: admin
+  selector:
+    app: kong

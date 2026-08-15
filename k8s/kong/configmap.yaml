@@ -1,9 +1,65 @@
+# ConfigMap do Kong
+# Configuração declarativa (DB-less): rotas, JWT e consumer.
+# Em produção, extraia o secret JWT para um Secret/Key Vault.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: kong-config
-  namespace: kong
+  namespace: fiap-cloud-games
+  labels:
+    app.kubernetes.io/name: kong
+    app.kubernetes.io/component: api-gateway
+    app.kubernetes.io/part-of: fiap-cloud-games
 data:
+  kong.yml: |
+    _format_version: "3.0"
+    _transform: true
+    services:
+      - name: users-api
+        url: http://users-api:80
+        routes:
+          - name: users-public
+            paths:
+              - /users
+            strip_path: true
+            methods:
+              - POST
+          - name: users-protected
+            paths:
+              - /users
+            strip_path: true
+            methods:
+              - GET
+              - PUT
+              - PATCH
+              - DELETE
+            plugins:
+              - name: jwt
+                config:
+                  key_claim_name: iss
+                  secret_is_base64: false
+                  claims_to_verify:
+                    - exp
+      - name: catalog-api
+        url: http://catalog-api:80
+        routes:
+          - name: catalog-protected
+            paths:
+              - /catalog
+            strip_path: true
+            plugins:
+              - name: jwt
+                config:
+                  key_claim_name: iss
+                  secret_is_base64: false
+                  claims_to_verify:
+                    - exp
+    consumers:
+      - username: fiap-cloud-games
+        jwt_secrets:
+          - algorithm: HS256
+            key: FiapCloudGames
+            secret: minha-chave-jwt-super-secreta-2026-api-segura
   # Kong configuration for FIAP Cloud Games
   KONG_DATABASE: "postgres"
   KONG_PG_HOST: "kong-postgresql"
