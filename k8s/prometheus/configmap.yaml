@@ -1,0 +1,31 @@
+# ConfigMap do Prometheus
+# Contém o scrape das métricas UsersAPI e CatalogAPI (/metrics).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: fiap-cloud-games
+  labels:
+    app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/part-of: fiap-cloud-games
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      - job_name: users-api
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["users-api.fiap-cloud-games.svc.cluster.local:80"]
+            labels:
+              service: users-api
+
+      - job_name: catalog-api
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["catalog-api.fiap-cloud-games.svc.cluster.local:80"]
+            labels:
+              service: catalog-api
