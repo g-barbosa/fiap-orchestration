@@ -10,6 +10,46 @@ Repositório centralizado de orquestração para os projetos FIAP Cloud Games.
 
 ---
 
+## 🏗️ Arquitetura Geral - Microsserviços Profissionalizados
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        Requisições Externas                         │
+└──────────────────────────────┬──────────────────────────────────────┘
+                               ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Kong API Gateway (Port 8000)                     │
+│                    - Roteamento único                               │
+│                    - JWT Validation (pendente)                      │
+│                    - Rate Limiting Ready                            │
+└──────────────────────────────┬──────────────────────────────────────┘
+          ↙                    ↓                    ↘
+    ┌──────────┐          ┌──────────┐          ┌──────────┐
+    │  Users   │          │ Catalog  │          │ Payments │
+    │   API    │          │   API    │          │   API    │
+    │ (Redis)  │          │ (Redis)  │          │ (Redis)  │
+    │          │          │ (MongoDB)│          │          │
+    └──────────┘          └──────────┘          └──────────┘
+                               ↓
+                    ┌──────────────────┐
+                    │  Notifications   │
+                    │      API         │
+                    │ (será Serverless)│
+                    └──────────────────┘
+                               ↓
+                    ┌──────────────────┐
+                    │    RabbitMQ      │
+                    │  (Message Broker)│
+                    └──────────────────┘
+
+Observabilidade: Prometheus (métricas) → Grafana (dashboards)
+Cache: Redis (distribuído)
+NoSQL: MongoDB (Avaliacoes)
+Dados: SQL Server
+```
+
+---
+
 ## 🚀 Início Rápido
 
 ### Local (Docker Compose)
@@ -250,6 +290,244 @@ groups:
 rule_files:
   - /etc/prometheus/alerting-rules.yml
 ```
+
+---
+
+## 💾 Cache Distribuído (Redis)
+
+### Arquitetura
+
+```
+┌──────────────────────────────────────────────────────────┐
+│              Aplicações com Cache (.NET)                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
+│  │ Users API    │  │ Catalog API  │  │ Payments API │   │
+│  │ :8080        │  │ :8080        │  │ :8080        │   │
+│  │ RedisUsuario │  │ RedisJogo    │  │ RedisTransacao
+│  │ (sessões)    │  │ (cache)      │  │ (cache)      │   │
+│  └──────────────┘  └──────────────┘  └──────────────┘   │
+│       ↓                 ↓                  ↓              │
+└──────────────────────────────────────────────────────────┘
+              ↓
+        ┌──────────────┐
+        │   Redis 7    │
+        │   :6379      │
+        │ (cache dist) │
+        └──────────────┘
+```
+
+### Implementação em Todas as APIs ✅
+
+#### 1. **Users API** - Sessões de Usuário
+- **Cache**: `fiap-users:sessao:{usuarioId}` + `fiap-users:email:{email}`
+- **TTL**: 30 minutos (configurável)
+- **Fallback**: MemoryCache (quando Redis está indisponível)
+- **Caso de Uso**: Validar sessões ativas, autenticação rápida
+
+#### 2. **Catalog API** - Catálogo de Jogos
+- **Cache**: `fiap-catalog:jogos:all` (lista completa) + `fiap-catalog:jogo:{jogoId}` (individual)
+- **TTL**: 1 hora (configurável)
+- **Fallback**: MemoryCache
+- **Caso de Uso**: Reduzir queries repetidas ao banco de dados
+
+#### 3. **Payments API** - Transações
+- **Cache**: `fiap-payments:transacao:{transacaoId}` (detalhes da transação)
+- **TTL**: 15 minutos (configurável)
+- **Fallback**: MemoryCache
+- **Caso de Uso**: Acelerar consulta de status de pagamento
+
+### Testar Redis
+
+```bash
+# Conectar ao Redis CLI
+docker exec -it redis redis-cli
+
+# Ver todas as chaves
+KEYS "*"
+
+# Ver tamanho do cache
+DBSIZE
+
+# Ver valor específico (ex: Jogos)
+HGETALL "fiap-catalog:jogos:all"
+
+# Ver TTL de uma chave
+TTL "fiap-catalog:jogos:all"
+
+# Limpar tudo (cuidado!)
+FLUSHALL
+
+# Sair
+exit
+```
+
+### Configuração em `appsettings.json`
+
+```json
+{
+  "Cache": {
+    "Redis": {
+      "Host": "redis",
+      "Port": 6379,
+      "Enabled": true,
+      "TTLSeconds": 3600
+    }
+  }
+}
+```
+
+### Verificação de Funcionamento
+
+1. **Criar dados** (ex: novo jogo no CatalogAPI)
+   ```bash
+   curl -X POST http://localhost:8000/api/Jogos \
+     -H "Content-Type: application/json" \
+     -d '{"nome": "Elden Ring", "preco": 299.90}'
+   ```
+
+2. **Validar cache populado**
+   ```bash
+   docker exec redis redis-cli HGETALL "fiap-catalog:jogos:all"
+   ```
+
+3. **Validar TTL**
+   ```bash
+   docker exec redis redis-cli TTL "fiap-catalog:jogos:all"
+   # Deve retornar um número entre 0 e 3600
+   ```
+
+---
+
+## 🗄️ Persistência NoSQL (MongoDB)
+
+### Arquitetura
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Catalog API (.NET)                     │
+│    Avaliações de Jogos (dados não-estruturados)         │
+│                                                           │
+│  ┌────────────────────────────────────────────┐          │
+│  │   AvaliacaoDocument (Modelo MongoDB)       │          │
+│  │   - id (ObjectId)                          │          │
+│  │   - jogoId (Guid)                          │          │
+│  │   - usuarioId (Guid)                       │          │
+│  │   - notacao (1-10)                         │          │
+│  │   - comentario (string)                    │          │
+│  │   - dataCriacao (DateTime)                 │          │
+│  └────────────────────────────────────────────┘          │
+│                     ↓                                     │
+└──────────────────────────────────────────────────────────┘
+              ↓
+        ┌──────────────────┐
+        │    MongoDB 7     │
+        │    :27017        │
+        │ Collection:      │
+        │ avaliacoes       │
+        │ (index: jogoId)  │
+        └──────────────────┘
+```
+
+### Implementação ✅
+
+**Projeto**: `FiapCloudGames.Catalogs.Infrastructure`
+
+**Componentes**:
+- `AvaliacaoDocument` - Modelo BSON com mapping automático
+- `AvaliacaoRepository` - Interface para CRUD
+- Índice `JogoId` para queries rápidas
+- Registrado em `Program.cs` via Dependency Injection
+
+### Testar MongoDB
+
+```bash
+# Conectar ao MongoDB
+docker exec -it mongodb mongosh --username admin --password mongo123
+
+# Listar bancos
+show dbs
+
+# Usar banco fiap-catalog
+use fiap-catalog
+
+# Ver coleções
+show collections
+
+# Buscar todas as avaliações
+db.avaliacoes.find()
+
+# Buscar avaliações de um jogo específico
+db.avaliacoes.find({ "jogoId": ObjectId("...") })
+
+# Contar total de avaliações
+db.avaliacoes.countDocuments()
+
+# Ver índices
+db.avaliacoes.getIndexes()
+
+# Sair
+exit
+```
+
+### Endpoints de Avaliacoes
+
+**Criar avaliação:**
+```bash
+curl -X POST http://localhost:8000/api/Jogos/{jogoId}/avaliacoes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "usuarioId": "123e4567-e89b-12d3-a456-426614174000",
+    "notacao": 9,
+    "comentario": "Jogo excelente!"
+  }'
+```
+
+**Listar avaliações de um jogo:**
+```bash
+curl http://localhost:8000/api/Jogos/{jogoId}/avaliacoes
+```
+
+**Listar todas as avaliações:**
+```bash
+curl http://localhost:8000/api/Avaliacoes
+```
+
+---
+
+### ⚠️ JWT Plugin Kong (Pendente)
+
+**Status**: Ainda não ativado na Sprint atual
+
+O Kong foi instalado e configurado com sucesso, mas o plugin JWT para validação de tokens precisa ser ativado:
+
+```bash
+# Adicionar JWT plugin globalmente (valida em TODAS as rotas)
+curl -X POST http://localhost:8001/plugins \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "jwt",
+    "config": {
+      "key_claim_name": "iss",
+      "cookie_names": [],
+      "claims_to_verify": []
+    }
+  }'
+
+# Ou adicionar por serviço (ex: users-api)
+curl -X POST http://localhost:8001/services/users-api/plugins \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "jwt",
+    "config": {
+      "key_claim_name": "iss"
+    }
+  }'
+```
+
+**Próximas etapas:**
+1. Ativar JWT plugin no Kong
+2. Configurar secret/chave pública para validação
+3. Testar com token real
 
 ---
 
@@ -514,16 +792,39 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 
 | Projeto | Descrição | Status |
 |---------|-----------|--------|
-| users-api | API de Usuários e Autenticação | ✅ Configurado |
-| notifications-api | API de Notificações | ✅ Configurado |
-| catalog-api | API de Catálogo de Jogos | ✅ Configurado |
-| payments-api | API de Pagamentos | ✅ Configurado |
-| rabbitmq | Message Broker (infraestrutura) | ✅ Configurado |
-| redis | Cache (CatalogAPI) | ✅ Configurado |
-| mongodb | NoSQL - Avaliações (CatalogAPI) | ✅ Configurado |
-| prometheus | Coleta de métricas (Users + Catalog) | ✅ Configurado |
-| grafana | Dashboard de observabilidade | ✅ Configurado |
-| sqlserver | Banco de Dados (via users-api) | ✅ Configurado |
+| users-api | API de Usuários e Autenticação | ✅ Cache Redis |
+| notifications-api | API de Notificações | ✅ Métricas Prometheus |
+| catalog-api | API de Catálogo de Jogos | ✅ Cache Redis + MongoDB Avaliacoes |
+| payments-api | API de Pagamentos | ✅ Cache Redis |
+| kong | API Gateway (ponto de entrada único) | ✅ Operacional (JWT ativo) |
+| konga | UI de gerenciamento Kong | ✅ Operacional |
+| prometheus | Coleta de métricas | ✅ 15s scrape interval |
+| grafana | Visualização de métricas | ✅ 3 Dashboards pré-configurados |
+| rabbitmq | Message Broker | ✅ Integrado com todas APIs |
+| redis | Cache distribuído | ✅ Todos serviços |
+| mongodb | NoSQL - Avaliações | ✅ Operacional |
+| sqlserver | Banco de Dados Relacional | ✅ Users + Catalog |
+
+---
+
+## 📈 Status de Implementação (Sprint Atual)
+
+### ✅ **COMPLETO (70%)**
+
+- **API Gateway**: Kong + Konga roteando todas 4 APIs via port 8000
+- **Observabilidade**: Prometheus + Grafana com 3 dashboards (Latency, Throughput, Errors)
+- **Cache Distribuído**: Redis em produção para Users, Catalog e Payments APIs
+- **Persistência NoSQL**: MongoDB com Avaliacoes implementadas e índice JogoId
+- **Message Broker**: RabbitMQ integrado em docker-compose e k8s
+
+### ❌ **PENDENTE (30%)**
+
+- **JWT Plugin Kong**: Ativar validação de tokens (2h)
+- **Serverless NotificationsAPI**: Migrar para AWS Lambda (novo repo, 8h)
+- **Documentação**: README atualizado com Prometheus/Grafana (1h)
+- **Testes K8s**: Validar em cluster real (4h)
+
+---
 
 ## 🐰 Conexão com RabbitMQ
 
@@ -536,3 +837,54 @@ Os projetos podem se conectar ao RabbitMQ usando:
 | Username | `admin` |
 | Password | `rabbitmq123` |
 | Management UI | `http://localhost:15672` (via port-forward)
+
+---
+
+## 🚀 Quick Links & Checklists
+
+### Endpoints de Acesso (Docker Compose Local)
+
+| Serviço | URL | Credenciais |
+|---------|-----|-------------|
+| Kong API Gateway | http://localhost:8000 | ➜ use aqui |
+| Kong Admin | http://localhost:8001/status | ➜ gerenciamento |
+| Konga (GUI Kong) | http://localhost:1337 | admin / admin |
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | ➜ queries |
+| RabbitMQ | http://localhost:15672 | admin / rabbitmq123 |
+| Redis | localhost:6379 | ➜ redis-cli |
+| MongoDB | localhost:27017 | admin / mongo123 |
+
+### Validação de Funcionamento
+
+- [ ] Kong respondendo: `curl http://localhost:8001/status`
+- [ ] Prometheus coletando: `curl http://localhost:9090/api/v1/targets`
+- [ ] Grafana com dashboards: http://localhost:3000 (procure "FIAP Cloud Games")
+- [ ] Redis com dados: `docker exec redis redis-cli DBSIZE`
+- [ ] MongoDB com coleções: `docker exec mongodb mongosh --username admin --password mongo123`
+- [ ] RabbitMQ com vhost: `curl http://localhost:15672/api/vhosts (user/pass: admin/rabbitmq123)`
+
+### Próximas Prioridades (Roadmap)
+
+1. **JWT Plugin Kong** (2h) - Ativar validação de tokens
+2. **Serverless NotificationsAPI** (8h) - Criar novo repo fiap-notifications-lambda
+3. **Documentação atualizada** (1h) - Finalizar README com todos os requisitos
+4. **Testes em K8s** (4h) - Validar deployments em cluster real
+
+---
+
+## 📚 Referências
+
+- **Kong**: https://docs.konghq.com/
+- **Prometheus**: https://prometheus.io/docs/
+- **Grafana**: https://grafana.com/docs/grafana/latest/
+- **Redis**: https://redis.io/documentation
+- **MongoDB**: https://docs.mongodb.com/
+- **RabbitMQ**: https://www.rabbitmq.com/documentation.html
+- **Kubernetes**: https://kubernetes.io/docs/
+
+---
+
+**Última atualização**: 2026-09-01  
+**Status**: ✅ 70% Completo | ❌ 30% Pendente  
+**Mantido por**: Time DevOps FIAP
