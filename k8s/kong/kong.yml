@@ -1,0 +1,78 @@
+# Configuração declarativa do Kong (services, routes, plugins, consumers).
+# Fonte única de verdade, versionada no repo. Aplicar com:
+#   deck sync --kong-addr http://localhost:8001 -s k8s/kong/kong.yml
+# Conferir diferenças antes de aplicar com:
+#   deck diff --kong-addr http://localhost:8001 -s k8s/kong/kong.yml
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: users-api
+    url: http://users-api:8080
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    routes:
+      # Cadastro e login não exigem token: é aqui que o token é emitido.
+      - name: users-api-public
+        paths:
+          - /api/Usuarios
+          - /api/Usuarios/login
+        methods:
+          - POST
+        strip_path: false
+      # Demais operações (ex.: tornar-admin) exigem JWT válido.
+      - name: users-api-protected
+        paths:
+          - /api/Usuarios
+        methods:
+          - GET
+          - PATCH
+          - PUT
+          - DELETE
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+  - name: catalog-api
+    url: http://catalog-api:8080
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    routes:
+      - name: catalog-jogos
+        paths:
+          - /api/Jogos
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+      - name: catalog-bibliotecas
+        paths:
+          - /api/Bibliotecas
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              claims_to_verify:
+                - exp
+
+# payments-api e notifications-api ficam de fora por enquanto:
+# Payments ainda não tem controllers HTTP (só health/metrics) e Notifications
+# está migrando para arquitetura serverless (sem rota fixa no Gateway).
+
+# Consumer representa o emissor de tokens (Users API). O par key/secret abaixo
+# precisa ser IDÊNTICO ao Jwt:Issuer / Jwt:Key da Users API (ver
+# fiap-users-api/k8s/secret.yaml e Jwt__Key no docker-compose.yml) para que a
+# assinatura HS256 do token seja validada corretamente pelo Kong.
+consumers:
+  - username: fcg-users-api
+    jwt_secrets:
+      - key: FiapCloudGames
+        algorithm: HS256
+        secret: minha-chave-jwt-super-secreta-2026-api-segura

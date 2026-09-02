@@ -396,6 +396,37 @@ services:
     networks:
       - fiap-network
 
+  # ===========================================
+  # AWS LOCALSTACK (Emulação AWS Local)
+  # ===========================================
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack
+    hostname: localstack
+    ports:
+      - "4566:4566"         # Porta principal LocalStack
+      - "4571:4571"         # Edge Port
+    environment:
+      SERVICES: lambda,sqs,cloudwatch,logs,events
+      DEBUG: 0
+      DATA_DIR: /tmp/localstack/data
+      DOCKER_HOST: unix:///var/run/docker.sock
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    volumes:
+      - "${TMPDIR:-.}/localstack:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - fiap-network
+
 # ===========================================
 # REDE
 # ===========================================

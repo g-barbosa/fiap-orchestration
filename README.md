@@ -20,7 +20,7 @@ Repositório centralizado de orquestração para os projetos FIAP Cloud Games.
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    Kong API Gateway (Port 8000)                     │
 │                    - Roteamento único                               │
-│                    - JWT Validation (pendente)                      │
+│                    - JWT Validation (plugin ativo, kong.yml)        │
 │                    - Rate Limiting Ready                            │
 └──────────────────────────────┬──────────────────────────────────────┘
           ↙                    ↓                    ↘
@@ -83,67 +83,30 @@ docker-compose up -d
   - Payments API: http://localhost:8083/metrics
   - Notifications API: http://localhost:8081/metrics
 
-### Kong Setup (Passos Manuais)
+### Kong Setup (Declarativo via decK)
+
+A configuração do Gateway (services, routes, plugins, consumers) é **versionada** em
+[`k8s/kong/kong.yml`](k8s/kong/kong.yml) e aplicada com [decK](https://docs.konghq.com/deck/):
 
 ```bash
 # Verificar se Kong está pronto
 curl http://localhost:8001/status
 
-# Criar serviço: users-api
-curl -X POST http://localhost:8001/services \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "users-api",
-    "url": "http://users-api:8080",
-    "connect_timeout": 5000,
-    "write_timeout": 30000,
-    "read_timeout": 30000
-  }'
+# Ver o que seria alterado (não aplica nada)
+deck diff --kong-addr http://localhost:8001 -s k8s/kong/kong.yml
 
-# Criar rota para users-api
-curl -X POST http://localhost:8001/services/users-api/routes \
-  -H "Content-Type: application/json" \
-  -d '{
-    "paths": ["/api/Usuarios", "/api/Usuarios/*"],
-    "strip_path": false
-  }'
-
-# Criar serviço: catalog-api
-curl -X POST http://localhost:8001/services \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "catalog-api",
-    "url": "http://catalog-api:8080",
-    "connect_timeout": 5000,
-    "write_timeout": 30000,
-    "read_timeout": 30000
-  }'
-
-# Criar rotas para catalog-api
-curl -X POST http://localhost:8001/services/catalog-api/routes \
-  -H "Content-Type: application/json" \
-  -d '{
-    "paths": ["/api/Jogos", "/api/Jogos/*", "/api/Bibliotecas", "/api/Bibliotecas/*"],
-    "strip_path": false
-  }'
-
-# Criar serviço: payments-api
-curl -X POST http://localhost:8001/services \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "payments-api",
-    "url": "http://payments-api:8080",
-    "connect_timeout": 5000,
-    "write_timeout": 30000,
-    "read_timeout": 30000
-  }'
-
-  }'
-
-# ⚠️ Pagamentos e Notificações ainda não têm controllers implementados
-# Quando implementados, adicionar suas rotas aqui
+# Aplicar a configuração (cria/atualiza/remove para bater com o arquivo)
+deck sync --kong-addr http://localhost:8001 -s k8s/kong/kong.yml
 ```
-```
+
+Isso substitui os passos manuais via `curl` usados anteriormente: agora rotas e
+plugins nascem e são recriados a partir do arquivo, então o estado do Kong nunca
+fica só "na memória" do Postgres do container.
+
+> ⚠️ Pagamentos e Notificações ainda não têm rota no Gateway: Payments não tem
+> controllers HTTP implementados (só `/health` e `/metrics`) e Notifications está
+> migrando para arquitetura serverless. Quando isso mudar, adicionar os services/routes
+> correspondentes em `kong.yml`.
 
 #### ⚠️ Importante: strip_path: false
 
@@ -494,40 +457,35 @@ curl http://localhost:8000/api/Avaliacoes
 
 ---
 
-### ⚠️ JWT Plugin Kong (Pendente)
+### ✅ JWT Plugin Kong (Ativo)
 
-**Status**: Ainda não ativado na Sprint atual
+O plugin `jwt` está configurado em `k8s/kong/kong.yml` nas rotas protegidas de
+Users API (exceto cadastro/login) e Catalog API (Jogos, Bibliotecas). Um
+Consumer (`fcg-users-api`) guarda a credencial JWT com o **mesmo** `key`
+(= `Jwt:Issuer`) e `secret` (= `Jwt:Key`) usados pela Users API para assinar o
+token (HS256), então o Kong valida a assinatura sem precisar reimplementar nada.
 
-O Kong foi instalado e configurado com sucesso, mas o plugin JWT para validação de tokens precisa ser ativado:
+**Rotas públicas (sem token):**
+- `POST /api/Usuarios` (cadastro)
+- `POST /api/Usuarios/login` (login, emite o token)
+
+**Rotas protegidas (exigem `Authorization: Bearer <token>`):**
+- `GET/PATCH/PUT/DELETE /api/Usuarios/*` (ex.: tornar-admin)
+- `GET/POST/PUT/DELETE /api/Jogos/*`
+- `GET/POST/DELETE /api/Bibliotecas/*`
 
 ```bash
-# Adicionar JWT plugin globalmente (valida em TODAS as rotas)
-curl -X POST http://localhost:8001/plugins \
+# 1. Login (rota pública) e captura do token
+TOKEN=$(curl -s -X POST http://localhost:8000/api/Usuarios/login \
   -H "Content-Type: application/json" \
-  -d '{
-    "name": "jwt",
-    "config": {
-      "key_claim_name": "iss",
-      "cookie_names": [],
-      "claims_to_verify": []
-    }
-  }'
+  -d '{"email":"usuario@teste.com","senha":"senha123"}' | jq -r .token)
 
-# Ou adicionar por serviço (ex: users-api)
-curl -X POST http://localhost:8001/services/users-api/plugins \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "jwt",
-    "config": {
-      "key_claim_name": "iss"
-    }
-  }'
+# 2. Sem token -> 401 Unauthorized
+curl -i http://localhost:8000/api/Jogos
+
+# 3. Com token -> 200 OK
+curl -i http://localhost:8000/api/Jogos -H "Authorization: Bearer $TOKEN"
 ```
-
-**Próximas etapas:**
-1. Ativar JWT plugin no Kong
-2. Configurar secret/chave pública para validação
-3. Testar com token real
 
 ---
 
@@ -796,7 +754,7 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 | notifications-api | API de Notificações | ✅ Métricas Prometheus |
 | catalog-api | API de Catálogo de Jogos | ✅ Cache Redis + MongoDB Avaliacoes |
 | payments-api | API de Pagamentos | ✅ Cache Redis |
-| kong | API Gateway (ponto de entrada único) | ✅ Operacional (JWT ativo) |
+| kong | API Gateway (ponto de entrada único) | ✅ Operacional (JWT ativo via kong.yml) |
 | konga | UI de gerenciamento Kong | ✅ Operacional |
 | prometheus | Coleta de métricas | ✅ 15s scrape interval |
 | grafana | Visualização de métricas | ✅ 3 Dashboards pré-configurados |
@@ -809,19 +767,19 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 
 ## 📈 Status de Implementação (Sprint Atual)
 
-### ✅ **COMPLETO (70%)**
+### ✅ **COMPLETO**
 
 - **API Gateway**: Kong + Konga roteando todas 4 APIs via port 8000
+- **JWT Plugin Kong**: config declarativa versionada (`k8s/kong/kong.yml`), protegendo Users API e Catalog API
 - **Observabilidade**: Prometheus + Grafana com 3 dashboards (Latency, Throughput, Errors)
 - **Cache Distribuído**: Redis em produção para Users, Catalog e Payments APIs
 - **Persistência NoSQL**: MongoDB com Avaliacoes implementadas e índice JogoId
 - **Message Broker**: RabbitMQ integrado em docker-compose e k8s
 
-### ❌ **PENDENTE (30%)**
+### ❌ **PENDENTE**
 
-- **JWT Plugin Kong**: Ativar validação de tokens (2h)
 - **Serverless NotificationsAPI**: Migrar para AWS Lambda (novo repo, 8h)
-- **Documentação**: README atualizado com Prometheus/Grafana (1h)
+- **Payments/Notifications no Gateway**: adicionar rotas em `kong.yml` quando Payments tiver controllers HTTP e Notifications tiver endpoint estável
 - **Testes K8s**: Validar em cluster real (4h)
 
 ---
@@ -866,10 +824,9 @@ Os projetos podem se conectar ao RabbitMQ usando:
 
 ### Próximas Prioridades (Roadmap)
 
-1. **JWT Plugin Kong** (2h) - Ativar validação de tokens
-2. **Serverless NotificationsAPI** (8h) - Criar novo repo fiap-notifications-lambda
-3. **Documentação atualizada** (1h) - Finalizar README com todos os requisitos
-4. **Testes em K8s** (4h) - Validar deployments em cluster real
+1. **Serverless NotificationsAPI** (8h) - Criar novo repo fiap-notifications-lambda
+2. **Testes em K8s** (4h) - Validar deployments em cluster real
+3. **Rotas Payments/Notifications no Gateway** - assim que tiverem endpoints HTTP/trigger estáveis
 
 ---
 
