@@ -33,8 +33,8 @@ Repositório centralizado de orquestração para os projetos FIAP Cloud Games.
                                ↓
                     ┌──────────────────┐
                     │  Notifications   │
-                    │      API         │
-                    │ (será Serverless)│
+                    │ Azure Function   │
+                    │ (RabbitMQ trigger)│
                     └──────────────────┘
                                ↓
                     ┌──────────────────┐
@@ -81,7 +81,7 @@ docker-compose up -d
   - Users API: http://localhost:8080/metrics
   - Catalog API: http://localhost:8082/metrics
   - Payments API: http://localhost:8083/metrics
-  - Notifications API: http://localhost:8081/metrics
+  - Notifications: Azure Function local (`func start` no repo `fiap-notifications-function`)
 
 ### Kong Setup (Declarativo via decK)
 
@@ -751,7 +751,7 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 | Projeto | Descrição | Status |
 |---------|-----------|--------|
 | users-api | API de Usuários e Autenticação | ✅ Cache Redis |
-| notifications-api | API de Notificações | ✅ Métricas Prometheus |
+| notifications-function | Azure Functions (RabbitMQ triggers) | ✅ Serverless |
 | catalog-api | API de Catálogo de Jogos | ✅ Cache Redis + MongoDB Avaliacoes |
 | payments-api | API de Pagamentos | ✅ Cache Redis |
 | kong | API Gateway (ponto de entrada único) | ✅ Operacional (JWT ativo via kong.yml) |
@@ -778,9 +778,22 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 
 ### ❌ **PENDENTE**
 
-- **Serverless NotificationsAPI**: Migrar para AWS Lambda (novo repo, 8h)
-- **Payments/Notifications no Gateway**: adicionar rotas em `kong.yml` quando Payments tiver controllers HTTP e Notifications tiver endpoint estável
+- **Payments no Gateway**: adicionar rotas em `kong.yml` quando Payments tiver controllers HTTP
 - **Testes K8s**: Validar em cluster real (4h)
+- **Entrega**: vídeo + relatório técnico
+
+### ✅ Notifications serverless
+
+Repo: `fiap-notifications-function` (Azure Functions Isolated + RabbitMQ).
+
+```bash
+# Compose sem notifications-api; sobe só o broker + APIs
+docker compose up -d
+cd ../fiap-notifications-function/src/FiapCloudGames.Notifications.Functions
+func start
+```
+
+Filas: `usuario-criado` e `pagamento-processado-notifications`. IaC: `infra/main.bicep`.
 
 ---
 
@@ -824,9 +837,9 @@ Os projetos podem se conectar ao RabbitMQ usando:
 
 ### Próximas Prioridades (Roadmap)
 
-1. **Serverless NotificationsAPI** (8h) - Criar novo repo fiap-notifications-lambda
-2. **Testes em K8s** (4h) - Validar deployments em cluster real
-3. **Rotas Payments/Notifications no Gateway** - assim que tiverem endpoints HTTP/trigger estáveis
+1. **Testes em K8s** (4h) - Validar deployments em cluster real
+2. **Rotas Payments no Gateway** - assim que tiverem endpoints HTTP estáveis
+3. **Vídeo + relatório** da Fase 3
 
 ---
 

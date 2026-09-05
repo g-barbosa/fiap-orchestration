@@ -47,15 +47,11 @@ scrape_configs:
     scrape_interval: 10s
     scrape_timeout: 5s
 
-  - job_name: 'notifications-api'
-    static_configs:
-      - targets: ['notifications-api:8080']
-        labels:
-          service: 'notifications-api'
-          environment: 'development'
-    metrics_path: '/metrics'
-    scrape_interval: 10s
-    scrape_timeout: 5s
+  # notifications-api removido do compose (migrado para Azure Functions)
+  # - job_name: 'notifications-api'
+  #   static_configs:
+  #     - targets: ['notifications-api:8080']
+  #   metrics_path: '/metrics'
 
   # ========================================
   # Infrastructure Metrics

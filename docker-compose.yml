@@ -245,33 +245,15 @@ services:
     networks:
       - fiap-network
 
-  notifications-api:
-    build:
-      context: ../fiap-notifications-api
-      dockerfile: Dockerfile
-    image: fiap-notifications-api:latest
-    container_name: notifications-api
-    hostname: notifications-api
-    ports:
-      - "8081:8080"
-    environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_URLS: http://+:8080
-      RabbitMq__Host: rabbitmq
-      RabbitMq__Port: 5672
-      RabbitMq__Username: admin
-      RabbitMq__Password: rabbitmq123
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-    networks:
-      - fiap-network
+  # Notifications migrou para Azure Functions (repo fiap-notifications-function).
+  # Não subir o container junto com a Function (dois consumers na mesma fila).
+  # Local: cd ../fiap-notifications-function/src/FiapCloudGames.Notifications.Functions && func start
+  # notifications-api:
+  #   build:
+  #     context: ../fiap-notifications-api
+  #     dockerfile: Dockerfile
+  #   image: fiap-notifications-api:latest
+  #   ...
 
   catalog-api:
     build:
