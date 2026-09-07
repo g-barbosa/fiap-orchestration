@@ -786,14 +786,17 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 
 Repo: `fiap-notifications-function` (Azure Functions Isolated + RabbitMQ).
 
-```bash
-# Compose sem notifications-api; sobe só o broker + APIs
-docker compose up -d
+```powershell
+# Compose sem notifications-api; sobe broker + APIs
+docker compose up -d --remove-orphans
 cd ../fiap-notifications-function/src/FiapCloudGames.Notifications.Functions
+Copy-Item local.settings.json.example local.settings.json -Force
 func start
 ```
 
 Filas: `usuario-criado` e `pagamento-processado-notifications`. IaC: `infra/main.bicep`.
+
+**Passo a passo completo de teste** (cadastro + pagamento e logs esperados): ver o README do repo `fiap-notifications-function`.
 
 ---
 
