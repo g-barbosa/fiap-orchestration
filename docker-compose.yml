@@ -9,9 +9,12 @@ services:
     image: rabbitmq:3-management-alpine
     container_name: rabbitmq
     hostname: rabbitmq
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_prometheus && docker-entrypoint.sh rabbitmq-server"
     ports:
       - "5672:5672"
       - "15672:15672"
+      - "15692:15692"
     environment:
       RABBITMQ_DEFAULT_USER: admin
       RABBITMQ_DEFAULT_PASS: rabbitmq123

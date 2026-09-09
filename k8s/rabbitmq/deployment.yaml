@@ -19,11 +19,17 @@ spec:
       containers:
         - name: rabbitmq
           image: rabbitmq:3-management-alpine
+          command:
+            - sh
+            - -c
+            - rabbitmq-plugins enable --offline rabbitmq_prometheus && docker-entrypoint.sh rabbitmq-server
           ports:
             - containerPort: 5672
               name: amqp
             - containerPort: 15672
               name: management
+            - containerPort: 15692
+              name: prometheus
           env:
             - name: RABBITMQ_DEFAULT_USER
               valueFrom:
