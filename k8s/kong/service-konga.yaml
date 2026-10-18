@@ -4,7 +4,7 @@ metadata:
   name: konga
   namespace: fiap-cloud-games
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: konga
   ports:
