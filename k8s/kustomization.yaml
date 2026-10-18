@@ -1,14 +1,23 @@
-# Kustomization para recursos BASE do orquestrador
-# Os manifestos de cada projeto são aplicados via scripts (kubectl apply -f)
-# devido a restrições de segurança do Kustomize com paths externos
+# Infra do cluster: namespace, mensageria, cache, NoSQL e SQL.
+# As APIs ficam nos repositórios de cada serviço.
+# Kong (LoadBalancer) é instalado à parte via Helm com k8s/kong/values.yaml.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-
-commonLabels:
-  app.kubernetes.io/part-of: fiap-cloud-games
-  app.kubernetes.io/managed-by: kustomize
-
-
 resources:
   - base/namespace.yaml
+  - rabbitmq/configmap.yaml
+  - rabbitmq/secret.yaml
+  - rabbitmq/service.yaml
+  - rabbitmq/deployment.yaml
+  - redis/pvc.yaml
+  - redis/service.yaml
+  - redis/deployment.yaml
+  - mongodb/secret.yaml
+  - mongodb/pvc.yaml
+  - mongodb/service.yaml
+  - mongodb/deployment.yaml
+  - sqlserver/secret.yaml
+  - sqlserver/pvc.yaml
+  - sqlserver/service.yaml
+  - sqlserver/deployment.yaml
