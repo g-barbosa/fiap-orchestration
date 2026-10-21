@@ -87,28 +87,29 @@ helm repo add kong https://charts.konghq.com
 helm repo update
 ```
 
-### 2. Criar Namespace Kong
+### 2. Fazer Deploy do Kong com Helm
+
+O Kong fica no namespace `fiap-cloud-games`, em modo DB-less. As rotas saem de `kong.yml`.
 
 ```bash
-kubectl create namespace kong
-```
+kubectl create configmap kong-dbless-config \
+  --from-file=kong.yml=k8s/kong/kong.yml \
+  --namespace fiap-cloud-games \
+  --dry-run=client -o yaml | kubectl apply -f -
 
-### 3. Fazer Deploy do Kong com Helm
-
-```bash
 helm install kong kong/kong \
-  --namespace kong \
+  --namespace fiap-cloud-games \
   --values k8s/kong/values.yaml
 ```
 
-### 4. Port Forward (para acesso local)
+### 3. Port Forward (para acesso local)
 
 ```bash
 # Kong Proxy
-kubectl port-forward -n kong svc/kong-kong-proxy 8000:80
+kubectl port-forward -n fiap-cloud-games svc/kong-kong-proxy 8000:80
 
 # Kong Admin
-kubectl port-forward -n kong svc/kong-kong-admin 8001:8001
+kubectl port-forward -n fiap-cloud-games svc/kong-kong-admin 8001:8001
 ```
 
 ---
@@ -120,14 +121,14 @@ Após registrar serviços via Kong Admin API (veja a seção "Kong Admin API - R
 ### 1. Users API
 ```
 Caminho(s):  /api/users, /api/users/*
-Upstream:    http://users-api:8080
+Upstream:    http://users-api.fiap-cloud-games.svc.cluster.local:80
 Métodos:     GET, POST, PUT, DELETE, PATCH
 ```
 
 ### 2. Catalog API
 ```
 Caminho(s):  /api/catalogs/*, /api/games, /api/games/*
-Upstream:    http://catalog-api:8080
+Upstream:    http://catalog-api.fiap-cloud-games.svc.cluster.local:80
 Métodos:     GET, POST, PUT, DELETE, PATCH
 ```
 

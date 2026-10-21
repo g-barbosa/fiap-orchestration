@@ -1,14 +1,14 @@
 # Configuração declarativa do Kong (services, routes, plugins, consumers).
-# Fonte única de verdade, versionada no repo. Aplicar com:
-#   deck sync --kong-addr http://localhost:8001 -s k8s/kong/kong.yml
-# Conferir diferenças antes de aplicar com:
-#   deck diff --kong-addr http://localhost:8001 -s k8s/kong/kong.yml
+# O Helm sobe o Kong em DB-less e lê o ConfigMap kong-dbless-config,
+# gerado deste arquivo. Para atualizar as rotas no cluster:
+#   kubectl create configmap kong-dbless-config --from-file=kong.yml=k8s/kong/kong.yml -n fiap-cloud-games --dry-run=client -o yaml | kubectl apply -f -
+#   kubectl rollout restart deployment -n fiap-cloud-games -l app.kubernetes.io/name=kong
 _format_version: "3.0"
 _transform: true
 
 services:
   - name: users-api
-    url: http://users-api:8080
+    url: http://users-api.fiap-cloud-games.svc.cluster.local:80
     connect_timeout: 5000
     write_timeout: 30000
     read_timeout: 30000
@@ -38,7 +38,7 @@ services:
                 - exp
 
   - name: catalog-api
-    url: http://catalog-api:8080
+    url: http://catalog-api.fiap-cloud-games.svc.cluster.local:80
     connect_timeout: 5000
     write_timeout: 30000
     read_timeout: 30000

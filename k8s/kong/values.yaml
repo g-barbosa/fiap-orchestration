@@ -1,7 +1,4 @@
-# Kong Helm Chart Values
-# Used for Kubernetes deployment via Helm
-# Reference: https://github.com/Kong/charts
-
+# Kong Helm Chart values para o chart atual (proxy LoadBalancer, DB-less).
 replicaCount: 1
 
 image:
@@ -12,41 +9,28 @@ image:
 admin:
   enabled: true
   type: ClusterIP
-  port: 8001
-  nodePort: null
+  http:
+    enabled: true
+    servicePort: 8001
+    containerPort: 8001
 
 proxy:
   enabled: true
   type: LoadBalancer
-  externalIPs: []
-  ports:
-    http:
-      port: 8000
-      containerPort: 8000
-    https:
-      port: 8443
-      containerPort: 8443
+  http:
+    enabled: true
+    servicePort: 80
+    containerPort: 8000
 
-postgresql:
-  enabled: true
-  auth:
-    username: kong
-    password: "kong-db-password-secure"
-    database: kong
-  primary:
-    persistence:
-      enabled: true
-      size: 1Gi
+# As rotas vêm do ConfigMap gerado a partir de k8s/kong/kong.yml.
+env:
+  database: "off"
+
+dblessConfig:
+  configMap: kong-dbless-config
 
 ingressController:
   enabled: false
-
-plugins:
-  - jwt
-  - cors
-  - rate-limiting
-  - request-transformer
-  - response-transformer
 
 resources:
   limits:
@@ -55,23 +39,3 @@ resources:
   requests:
     cpu: 250m
     memory: 256Mi
-
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 3
-  targetCPUUtilizationPercentage: 80
-
-livenessProbe:
-  httpGet:
-    path: /status
-    port: 8001
-  initialDelaySeconds: 30
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /status
-    port: 8001
-  initialDelaySeconds: 15
-  periodSeconds: 10
