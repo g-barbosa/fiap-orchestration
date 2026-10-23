@@ -1,6 +1,7 @@
 # Configuração declarativa do Kong (services, routes, plugins, consumers).
 # O Helm sobe o Kong em DB-less e lê o ConfigMap kong-dbless-config,
-# gerado deste arquivo. Para atualizar as rotas no cluster:
+# gerado deste arquivo. Troque __JWT_KEY__ pelo segredo jwt-key do Key Vault
+# antes de aplicar. Para atualizar as rotas no cluster:
 #   kubectl create configmap kong-dbless-config --from-file=kong.yml=k8s/kong/kong.yml -n fiap-cloud-games --dry-run=client -o yaml | kubectl apply -f -
 #   kubectl rollout restart deployment -n fiap-cloud-games -l app.kubernetes.io/name=kong
 _format_version: "3.0"
@@ -66,13 +67,11 @@ services:
 # Payments ainda não tem controllers HTTP (só health/metrics) e Notifications
 # está migrando para arquitetura serverless (sem rota fixa no Gateway).
 
-# Consumer representa o emissor de tokens (Users API). O par key/secret abaixo
-# precisa ser IDÊNTICO ao Jwt:Issuer / Jwt:Key da Users API (ver
-# fiap-users-api/k8s/secret.yaml e Jwt__Key no docker-compose.yml) para que a
-# assinatura HS256 do token seja validada corretamente pelo Kong.
+# Consumer representa o emissor de tokens (Users API). __JWT_KEY__ é trocado
+# pelo segredo jwt-key do Key Vault na hora de gerar o ConfigMap.
 consumers:
   - username: fcg-users-api
     jwt_secrets:
       - key: FiapCloudGames
         algorithm: HS256
-        secret: minha-chave-jwt-super-secreta-2026-api-segura
+        secret: __JWT_KEY__

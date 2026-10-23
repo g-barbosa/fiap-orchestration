@@ -6,18 +6,16 @@ kind: Kustomization
 
 resources:
   - base/namespace.yaml
+  - keyvault/secretproviderclass.yaml
   - rabbitmq/configmap.yaml
-  - rabbitmq/secret.yaml
   - rabbitmq/service.yaml
   - rabbitmq/deployment.yaml
   - redis/pvc.yaml
   - redis/service.yaml
   - redis/deployment.yaml
-  - mongodb/secret.yaml
   - mongodb/pvc.yaml
   - mongodb/service.yaml
   - mongodb/deployment.yaml
-  - sqlserver/secret.yaml
   - sqlserver/pvc.yaml
   - sqlserver/service.yaml
   - sqlserver/deployment.yaml

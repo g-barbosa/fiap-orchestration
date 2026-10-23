@@ -14,6 +14,8 @@ metadata:
     app.kubernetes.io/part-of: fiap-cloud-games
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mongodb
@@ -30,10 +32,7 @@ spec:
               name: mongodb
           env:
             - name: MONGO_INITDB_ROOT_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: mongodb-secrets
-                  key: MONGO_INITDB_ROOT_USERNAME
+              value: admin
             - name: MONGO_INITDB_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -49,7 +48,16 @@ spec:
           volumeMounts:
             - name: mongo-data
               mountPath: /data/db
+            - name: keyvault
+              mountPath: /mnt/secrets-store
+              readOnly: true
       volumes:
         - name: mongo-data
           persistentVolumeClaim:
             claimName: mongo-data
+        - name: keyvault
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: fcg-keyvault

@@ -71,7 +71,7 @@ docker-compose up -d
 - **Konga (Gerenciador Kong)**: http://localhost:1337
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000 (user: admin, password: admin)
-- **RabbitMQ**: http://localhost:15672 (user: admin, password: rabbitmq123)
+- **RabbitMQ**: http://localhost:15672 (user: admin, password: <senha do .env>)
 - **Serviços** (via Kong Gateway na porta 8000):
   - Users: http://localhost:8000/api/Usuarios
   - Catalog (Jogos): http://localhost:8000/api/Jogos
@@ -405,7 +405,7 @@ exit
 
 ```bash
 # Conectar ao MongoDB
-docker exec -it mongodb mongosh --username admin --password mongo123
+docker exec -it mongodb mongosh --username admin --password <senha do .env>
 
 # Listar bancos
 show dbs
@@ -614,12 +614,12 @@ docker-compose down -v
 | Catalog API - Jogos | http://localhost:8082/swagger | API de Catálogo - `/api/Jogos` |
 | Catalog API - Bibliotecas | http://localhost:8082/swagger | API de Catálogo - `/api/Bibliotecas` |
 | Payments API | http://localhost:8083/swagger | API de Pagamentos (sem rotas Kong ainda) |
-| RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/rabbitmq123) |
+| RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/<senha do .env>) |
 | Redis | localhost:6379 | Cache |
-| MongoDB | localhost:27017 | Avaliações (admin/mongo123) |
+| MongoDB | localhost:27017 | Avaliações (admin/<senha do .env>) |
 | Prometheus | http://localhost:9090 | Métricas (scrape Users + Catalog) |
 | Grafana | http://localhost:3000 | Dashboard (admin/admin) |
-| SQL Server | localhost:1433 | Banco de Dados (SA/Mysql2022!) |
+| SQL Server | localhost:1433 | Banco de Dados (SA/<senha do .env>) |
 
 ### ✅ Testar Redis + Mongo (CatalogAPI)
 
@@ -725,7 +725,7 @@ kubectl port-forward svc/payments-api 8083:80 -n fiap-cloud-games
 
 # RabbitMQ Management (porta 15672)
 kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
-# Acesse: http://localhost:15672 (admin / rabbitmq123)
+# Acesse: http://localhost:15672 (admin / <senha do .env>)
 ```
 
 ## 📝 Convenções para Novos Projetos
@@ -809,7 +809,7 @@ Os projetos podem se conectar ao RabbitMQ usando:
 | Host | `rabbitmq` |
 | Port | `5672` |
 | Username | `admin` |
-| Password | `rabbitmq123` |
+| Password | `<senha do .env>` |
 | Management UI | `http://localhost:15672` (via port-forward)
 
 ---
@@ -825,9 +825,9 @@ Os projetos podem se conectar ao RabbitMQ usando:
 | Konga (GUI Kong) | http://localhost:1337 | admin / admin |
 | Grafana | http://localhost:3000 | admin / admin |
 | Prometheus | http://localhost:9090 | ➜ queries |
-| RabbitMQ | http://localhost:15672 | admin / rabbitmq123 |
+| RabbitMQ | http://localhost:15672 | admin / <senha do .env> |
 | Redis | localhost:6379 | ➜ redis-cli |
-| MongoDB | localhost:27017 | admin / mongo123 |
+| MongoDB | localhost:27017 | admin / <senha do .env> |
 
 ### Validação de Funcionamento
 
@@ -835,8 +835,8 @@ Os projetos podem se conectar ao RabbitMQ usando:
 - [ ] Prometheus coletando: `curl http://localhost:9090/api/v1/targets`
 - [ ] Grafana com dashboards: http://localhost:3000 (procure "FIAP Cloud Games")
 - [ ] Redis com dados: `docker exec redis redis-cli DBSIZE`
-- [ ] MongoDB com coleções: `docker exec mongodb mongosh --username admin --password mongo123`
-- [ ] RabbitMQ com vhost: `curl http://localhost:15672/api/vhosts (user/pass: admin/rabbitmq123)`
+- [ ] MongoDB com coleções: `docker exec mongodb mongosh --username admin --password <senha do .env>`
+- [ ] RabbitMQ com vhost: `curl http://localhost:15672/api/vhosts (user/pass: admin/<senha do .env>)`
 
 ### Próximas Prioridades (Roadmap)
 

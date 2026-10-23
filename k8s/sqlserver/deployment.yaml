@@ -66,7 +66,16 @@ spec:
           volumeMounts:
             - name: sqlserver-data
               mountPath: /var/opt/mssql
+            - name: keyvault
+              mountPath: /mnt/secrets-store
+              readOnly: true
       volumes:
         - name: sqlserver-data
           persistentVolumeClaim:
             claimName: sqlserver-data
+        - name: keyvault
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: fcg-keyvault

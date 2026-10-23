@@ -17,7 +17,7 @@ services:
       - "15692:15692"
     environment:
       RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: rabbitmq123
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -37,12 +37,12 @@ services:
       - "1433:1433"
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: "Mysql2022!"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
       MSSQL_PID: "Developer"
     volumes:
       - sqlserver_data:/var/opt/mssql
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Mysql2022!' -C -Q 'SELECT 1' || exit 1"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -75,11 +75,11 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: mongo123
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "-u", "admin", "-p", "mongo123", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
+      test: ["CMD", "mongosh", "--quiet", "-u", "admin", "-p", "${MONGO_INITDB_ROOT_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -98,7 +98,7 @@ services:
     environment:
       POSTGRES_DB: kong
       POSTGRES_USER: kong
-      POSTGRES_PASSWORD: kong-password-secure
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD}
     volumes:
       - postgres_kong_data:/var/lib/postgresql/data
       - ./init-konga-db.sql:/docker-entrypoint-initdb.d/01-init-konga.sql:ro
@@ -122,7 +122,7 @@ services:
       KONG_DATABASE: postgres
       KONG_PG_HOST: postgres-kong
       KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kong-password-secure
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD}
       KONG_PG_DATABASE: kong
     networks:
       - fiap-network
@@ -141,7 +141,7 @@ services:
       KONG_DATABASE: postgres
       KONG_PG_HOST: postgres-kong
       KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kong-password-secure
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD}
       KONG_PG_DATABASE: kong
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_ADMIN_ACCESS_LOG: /dev/stdout
@@ -171,7 +171,7 @@ services:
       - "-a"
       - "postgres"
       - "-u"
-      - "postgresql://kong:kong-password-secure@postgres-kong:5432/konga"
+      - "postgresql://kong:${KONG_PG_PASSWORD}@postgres-kong:5432/konga"
     depends_on:
       postgres-kong:
         condition: service_healthy
@@ -195,7 +195,7 @@ services:
       DB_ADAPTER: postgres
       DB_HOST: postgres-kong
       DB_USER: kong
-      DB_PASSWORD: kong-password-secure
+      DB_PASSWORD: ${KONG_PG_PASSWORD}
       DB_DATABASE: konga
       DB_PORT: 5432
     volumes:
@@ -225,12 +225,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesDb;User ID=SA;Password=Mysql2022!;TrustServerCertificate=true"
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesDb;User ID=SA;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=true"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__Username: admin
-      RabbitMq__Password: rabbitmq123
-      Jwt__Key: minha-chave-jwt-super-secreta-2026-api-segura
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
+      Jwt__Key: ${JWT_KEY}
       Jwt__Issuer: FiapCloudGames
       Jwt__Audience: FiapCloudGames
       Jwt__ExpiracaoMinutos: 60
@@ -270,15 +270,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesCatalogDb;User ID=SA;Password=Mysql2022!;TrustServerCertificate=true"
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesCatalogDb;User ID=SA;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=true"
       ConnectionStrings__Redis: "redis:6379"
-      ConnectionStrings__MongoDb: "mongodb://admin:mongo123@mongodb:27017"
+      ConnectionStrings__MongoDb: "mongodb://admin:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017"
       MongoDb__Database: "FiapCloudGamesCatalog"
       Cache__JogosTtlSeconds: "300"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__Username: admin
-      RabbitMq__Password: rabbitmq123
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
     depends_on:
       sqlserver:
         condition: service_healthy
@@ -309,11 +309,11 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: http://+:8080
-      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesPaymentsDb;User ID=SA;Password=Mysql2022!;TrustServerCertificate=true"
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=FiapCloudGamesPaymentsDb;User ID=SA;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=true"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__Username: admin
-      RabbitMq__Password: rabbitmq123
+      RabbitMq__Password: ${RABBITMQ_DEFAULT_PASS}
     depends_on:
       sqlserver:
         condition: service_healthy
