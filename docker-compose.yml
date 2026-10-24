@@ -87,6 +87,27 @@ services:
     networks:
       - fiap-network
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
+    container_name: elasticsearch
+    hostname: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+    networks:
+      - fiap-network
+
   # ===========================================
   # KONG API GATEWAY
   # ===========================================
@@ -275,6 +296,8 @@ services:
       ConnectionStrings__MongoDb: "mongodb://admin:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017"
       MongoDb__Database: "FiapCloudGamesCatalog"
       Cache__JogosTtlSeconds: "300"
+      Elasticsearch__Url: "http://elasticsearch:9200"
+      Elasticsearch__Index: "jogos"
       RabbitMq__Host: rabbitmq
       RabbitMq__Port: 5672
       RabbitMq__Username: admin
@@ -287,6 +310,8 @@ services:
       redis:
         condition: service_healthy
       mongodb:
+        condition: service_healthy
+      elasticsearch:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
@@ -433,6 +458,8 @@ volumes:
     name: fiap-redis-data
   mongo_data:
     name: fiap-mongo-data
+  elasticsearch_data:
+    name: fiap-elasticsearch-data
   postgres_kong_data:
     name: fiap-postgres-kong-data
   konga_data:
