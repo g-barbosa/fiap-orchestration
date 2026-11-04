@@ -10,42 +10,317 @@ Repositório centralizado de orquestração para os projetos FIAP Cloud Games.
 
 ---
 
-## 🏗️ Arquitetura Geral - Microsserviços Profissionalizados
+## 🎯 O que é Orquestração?
+
+O `fiap-orchestration` é o **coração central** que coordena toda a arquitetura. Ele não executa lógica de negócio, mas gerencia:
+
+- ✅ Todas as **APIs** (Users, Catalog, Payments)
+- ✅ Toda **infraestrutura compartilhada** (Databases, Cache, Message Broker)
+- ✅ **Observabilidade** (Prometheus + Grafana)
+- ✅ **Ferramentas de desenvolvimento** (LocalStack, Kong)
+
+Tudo sobe com um único comando: `docker-compose up -d --build`
+
+---
+
+## 🏗️ Visão Geral - Arquitetura Centralizada
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Requisições Externas                         │
-└──────────────────────────────┬──────────────────────────────────────┘
-                               ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Kong API Gateway (Port 8000)                     │
-│                    - Roteamento único                               │
-│                    - JWT Validation (plugin ativo, kong.yml)        │
-│                    - Rate Limiting Ready                            │
-└──────────────────────────────┬──────────────────────────────────────┘
-          ↙                    ↓                    ↘
-    ┌──────────┐          ┌──────────┐          ┌──────────┐
-    │  Users   │          │ Catalog  │          │ Payments │
-    │   API    │          │   API    │          │   API    │
-    │ (Redis)  │          │ (Redis)  │          │ (Redis)  │
-    │          │          │ (MongoDB)│          │          │
-    └──────────┘          └──────────┘          └──────────┘
-                               ↓
-                    ┌──────────────────┐
-                    │  Notifications   │
-                    │ Azure Function   │
-                    │ (RabbitMQ trigger)│
-                    └──────────────────┘
-                               ↓
-                    ┌──────────────────┐
-                    │    RabbitMQ      │
-                    │  (Message Broker)│
-                    └──────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                  FIAP ORCHESTRATION (Central)                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  📂 docker-compose.yml - Orquestra tudo:                       │
+│     ├── 🏛️ INFRAESTRUTURA COMPARTILHADA                         │
+│     │   ├── Kong (API Gateway - Port 8000)                    │
+│     │   ├── PostgreSQL (Kong DB)                              │
+│     │   ├── RabbitMQ (Message Broker - 5672/15672)           │
+│     │   ├── SQL Server (Dados principais - 1433)             │
+│     │   ├── Redis (Cache distribuído - 6379)                 │
+│     │   ├── MongoDB (NoSQL Avaliações - 27017)               │
+│     │   └── Elasticsearch (Full-text search - 9200)          │
+│     │                                                           │
+│     ├── 🚀 MICROSSERVIÇOS (build dinâmico)                     │
+│     │   ├── fiap-users-api (8080)                            │
+│     │   ├── fiap-catalog-api (8082)                          │
+│     │   ├── fiap-payments-api (8083)                         │
+│     │   └── fiap-notifications-function (Azure, fora docker) │
+│     │                                                           │
+│     ├── 📊 OBSERVABILIDADE                                     │
+│     │   ├── Prometheus (9090 - Scrape 15s)                   │
+│     │   └── Grafana (3000 - Dashboards)                      │
+│     │                                                           │
+│     └── 🔧 FERRAMENTAS DE GERENCIAMENTO                       │
+│         └── Konga (1337 - Kong UI Management)                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-Observabilidade: Prometheus (métricas) → Grafana (dashboards)
-Cache: Redis (distribuído)
-NoSQL: MongoDB (Avaliacoes)
-Dados: SQL Server
+---
+
+## 🌐 Diagrama Completo de Fluxos
+
+```mermaid
+graph TB
+    subgraph "📱 Clientes Externos"
+        Web["Web App"]
+        Mobile["Mobile App"]
+    end
+    
+    subgraph "🔐 API Gateway Layer"
+        Kong["Kong API Gateway<br/>(Port 8000)<br/>- JWT Validation<br/>- Routing<br/>- Rate Limiting"]
+        Konga["Konga UI<br/>(Port 1337)"]
+    end
+    
+    subgraph "🚀 APIs - Microsserviços"
+        Users["Users API (8080)<br/>- Autenticação<br/>- Usuários<br/>- Autorização"]
+        Catalog["Catalog API (8082)<br/>- Jogos<br/>- Bibliotecas<br/>- Avaliações"]
+        Payments["Payments API (8083)<br/>- Transações<br/>- Processamento"]
+    end
+    
+    subgraph "💾 Persistência - Dados"
+        SQLServer["SQL Server<br/>(1433)<br/>- Users DB<br/>- Catalog DB<br/>- Payments DB"]
+        MongoDB["MongoDB<br/>(27017)<br/>- Avaliações"]
+        Redis["Redis Cache<br/>(6379)<br/>- Sessões<br/>- Catalog<br/>- Transações"]
+    end
+    
+    subgraph "🔍 Busca e Indexação"
+        ES["Elasticsearch<br/>(9200)<br/>- Índice: jogos<br/>- Full-text search"]
+    end
+    
+    subgraph "📨 Message Queue & Events"
+        RabbitMQ["RabbitMQ<br/>(5672/15672)<br/>- usuario-criado<br/>- pagamento-processado-notifications"]
+    end
+    
+    subgraph "📡 Notificações"
+        Notifications["Azure Function<br/>Notifications<br/>(Serverless)<br/>- Email/SMS<br/>- Eventos"]
+    end
+    
+    subgraph "📊 Observabilidade"
+        Prometheus["Prometheus<br/>(9090)<br/>- Scrape 15s<br/>- Métricas"]
+        Grafana["Grafana<br/>(3000)<br/>- Dashboards<br/>- admin/admin"]
+    end
+    
+    %% Fluxo Cliente → Gateway
+    Web --> Kong
+    Mobile --> Kong
+    
+    %% Fluxo Gateway → APIs
+    Kong --> Users
+    Kong --> Catalog
+    Kong --> Payments
+    
+    %% Fluxo APIs → Persistência
+    Users --> SQLServer
+    Users --> Redis
+    Catalog --> SQLServer
+    Catalog --> MongoDB
+    Catalog --> Redis
+    Catalog --> ES
+    Payments --> SQLServer
+    Payments --> Redis
+    
+    %% Fluxo Message Queue
+    Users --> RabbitMQ
+    Catalog --> RabbitMQ
+    Payments --> RabbitMQ
+    RabbitMQ --> Notifications
+    
+    %% Fluxo Observabilidade
+    Users -->|/metrics| Prometheus
+    Catalog -->|/metrics| Prometheus
+    Payments -->|/metrics| Prometheus
+    Prometheus --> Grafana
+    
+    %% Configuração Konga
+    Konga -.-> Kong
+```
+
+---
+
+## 🔄 Fluxos por Caso de Uso
+
+### **1️⃣ Cadastro de Usuário** (Sync → Async)
+
+```mermaid
+sequenceDiagram
+    participant Client as 👤 Cliente
+    participant Kong as 🔐 Kong<br/>(8000)
+    participant Users as 🚀 Users API<br/>(8080)
+    participant DB as 💾 SQL Server
+    participant Redis as ⚡ Redis
+    participant RabbitMQ as 📨 RabbitMQ
+    participant Notifications as 📡 Azure Function
+    
+    Client->>Kong: POST /api/Usuarios<br/>{email, senha, nome}
+    Kong->>Users: Rota PÚBLICA (sem JWT)
+    Users->>DB: INSERT INTO usuarios
+    Users->>Redis: SET "fiap-users:email:{email}" (30min)
+    Users->>RabbitMQ: Publish: usuario-criado
+    Users->>Client: ✅ 201 Created + JWT
+    
+    RabbitMQ->>Notifications: 🔔 Trigger
+    Notifications->>Client: 📧 Email confirmação
+```
+
+### **2️⃣ Listar Jogos** (Cache + Elasticsearch)
+
+```mermaid
+sequenceDiagram
+    participant Client as 👤 Cliente
+    participant Kong as 🔐 Kong
+    participant Catalog as 🎮 Catalog API
+    participant Redis as ⚡ Redis<br/>(1h TTL)
+    participant ES as 🔍 Elasticsearch
+    participant DB as 💾 SQL Server
+    
+    Client->>Kong: GET /api/Jogos?search=Mario
+    Kong->>Kong: ✓ JWT Validation
+    Kong->>Catalog: Token válido
+    
+    alt 🎯 Redis Cache HIT
+        Catalog->>Redis: GET "fiap-catalog:jogos:all"
+        Redis-->>Catalog: 📦 Dados em cache
+        Catalog-->>Client: ✅ 200 OK (cached)
+    else ❌ Cache MISS
+        Catalog->>DB: SELECT * FROM Jogos
+        DB-->>Catalog: 📋 Lista de jogos
+        Catalog->>ES: Indexa documentos (bulk)
+        Catalog->>Redis: SET com TTL 1h
+        Catalog-->>Client: ✅ 200 OK (fresh)
+    end
+```
+
+### **3️⃣ Criar Avaliação** (Jogo → MongoDB)
+
+```mermaid
+sequenceDiagram
+    participant Client as 👤 Cliente
+    participant Kong as 🔐 Kong
+    participant Catalog as 🎮 Catalog API
+    participant MongoDB as 📄 MongoDB
+    participant Redis as ⚡ Redis
+    participant ES as 🔍 Elasticsearch
+    
+    Client->>Kong: POST /api/Jogos/{id}/avaliacoes<br/>{notacao, comentario}
+    Kong->>Catalog: ✓ JWT Validation
+    Catalog->>MongoDB: INSERT INTO avaliacoes
+    MongoDB-->>Catalog: ✅ ObjectId criado
+    
+    Catalog->>Redis: DEL "fiap-catalog:jogos:all"
+    Catalog->>ES: Atualiza índice
+    Catalog-->>Client: ✅ 201 Created
+```
+
+### **4️⃣ Processar Pagamento** (Async com Notificação)
+
+```mermaid
+sequenceDiagram
+    participant Client as 👤 Cliente
+    participant Kong as 🔐 Kong
+    participant Payments as 💳 Payments API
+    participant DB as 💾 SQL Server
+    participant Redis as ⚡ Redis<br/>(15min)
+    participant RabbitMQ as 📨 RabbitMQ
+    participant Notifications as 📡 Azure Function
+    
+    Client->>Kong: POST /api/Pagamentos<br/>{jogos, valor}
+    Kong->>Payments: ✓ JWT Validation
+    Payments->>DB: INSERT INTO transacoes
+    Payments->>Redis: SET transacao (15min)
+    Payments->>RabbitMQ: Publish: pagamento-processado-notifications
+    Payments-->>Client: ✅ 202 Accepted
+    
+    par Processamento Assíncrono
+        RabbitMQ->>Notifications: 🔔 Trigger
+        Notifications->>Client: 📱 SMS/Email
+    end
+```
+
+### **5️⃣ Observabilidade** (Métricas → Dashboard)
+
+```mermaid
+sequenceDiagram
+    participant APIs as 🚀 APIs<br/>(Users, Catalog, Payments)
+    participant Prometheus as 📊 Prometheus<br/>(9090)
+    participant Grafana as 📈 Grafana<br/>(3000)
+    participant DevOps as 👨‍💼 DevOps/Admin
+    
+    loop 🔄 Scrape a cada 15s
+        Prometheus->>APIs: GET /metrics
+        APIs-->>Prometheus: 📦 prometheus format
+    end
+    
+    Prometheus->>Prometheus: 💾 Armazena (15 dias)
+    DevOps->>Grafana: 🔗 Acessa dashboard
+    Grafana->>Prometheus: 📍 Query PromQL
+    Prometheus-->>Grafana: 📊 Dados
+    Grafana-->>DevOps: 📊 Visualiza latência/throughput/erros
+```
+
+---
+
+## 📋 Matriz de Endpoints
+
+| Endpoint | Método | Acesso | Banco | Cache | Message | Observação |
+|----------|--------|--------|-------|-------|---------|-----------|
+| `/api/Usuarios` | POST | 🔓 Público | SQL | — | usuario-criado | Cadastro |
+| `/api/Usuarios/login` | POST | 🔓 Público | SQL | Redis | — | Emite JWT |
+| `/api/Usuarios` | GET | 🔒 JWT | SQL | Redis | — | Listar users |
+| `/api/Usuarios/{id}` | GET/PATCH/DELETE | 🔒 JWT | SQL | Redis | — | Detalhes user |
+| `/api/Jogos` | GET | 🔒 JWT | SQL | Redis | — | Cache 1h, ES |
+| `/api/Jogos?search=` | GET | 🔒 JWT | ES | Redis | — | Full-text search |
+| `/api/Jogos` | POST | 🔒 JWT | SQL | — | — | Indexa ES |
+| `/api/Jogos/{id}/avaliacoes` | POST | 🔒 JWT | MongoDB | — | — | Limpa cache |
+| `/api/Jogos/{id}/avaliacoes` | GET | 🔒 JWT | MongoDB | — | — | Avaliações |
+| `/api/Pagamentos` | POST | 🔒 JWT | SQL | Redis | pagamento-processado-notifications | Cria transação |
+| `/api/Pagamentos` | GET | 🔒 JWT | SQL | Redis | — | Listar |
+| `/metrics` | GET | 🔓 Público | — | — | — | Prometheus scrape |
+| `/health` | GET | 🔓 Público | — | — | — | Health check |
+
+---
+
+## 🔍 Busca e Indexação (Elasticsearch)
+
+### **Elasticsearch** (Port 9200)
+
+Elasticsearch está integrado ao **Catalog API** para full-text search de jogos.
+
+**Configuração:**
+```yaml
+Elasticsearch:
+  Url: "http://elasticsearch:9200"
+  Index: "jogos"
+```
+
+**Índice: jogos**
+```
+Campos indexados:
+├── nome (text + keyword)
+├── descricao (text)
+├── genero (keyword)
+├── preco (number)
+└── dataLancamento (date)
+
+Sincronização:
+├─ Trigger: POST/PUT/DELETE /api/Jogos
+├─ Operação: Bulk index/update/delete
+└─ Fallback: SQL query se ES indisponível
+```
+
+**Query Exemplo:**
+```bash
+curl -X GET "http://localhost:9200/jogos/_search" \
+  -H "Content-Type: application/json" \
+  -d '
+{
+  "query": {
+    "multi_match": {
+      "query": "Mario",
+      "fields": ["nome", "descricao"]
+    }
+  }
+}'
 ```
 
 ---
@@ -72,6 +347,7 @@ docker-compose up -d
 - **Prometheus**: http://localhost:9090
 - **Grafana**: http://localhost:3000 (user: admin, password: admin)
 - **RabbitMQ**: http://localhost:15672 (user: admin, password: <senha do .env>)
+- **Elasticsearch**: http://localhost:9200
 - **Serviços** (via Kong Gateway na porta 8000):
   - Users: http://localhost:8000/api/Usuarios
   - Catalog (Jogos): http://localhost:8000/api/Jogos
@@ -614,10 +890,13 @@ docker-compose down -v
 | Catalog API - Jogos | http://localhost:8082/swagger | API de Catálogo - `/api/Jogos` |
 | Catalog API - Bibliotecas | http://localhost:8082/swagger | API de Catálogo - `/api/Bibliotecas` |
 | Payments API | http://localhost:8083/swagger | API de Pagamentos (sem rotas Kong ainda) |
+| Kong Gateway | http://localhost:8000 | Ponto único de entrada (proxy) |
+| Konga | http://localhost:1337 | UI gerenciamento Kong |
 | RabbitMQ Management | http://localhost:15672 | UI do RabbitMQ (admin/<senha do .env>) |
-| Redis | localhost:6379 | Cache |
-| MongoDB | localhost:27017 | Avaliações (admin/<senha do .env>) |
-| Prometheus | http://localhost:9090 | Métricas (scrape Users + Catalog) |
+| Redis | localhost:6379 | Cache (redis-cli) |
+| MongoDB | localhost:27017 | Avaliações (mongosh) |
+| Elasticsearch | http://localhost:9200 | Full-text search |
+| Prometheus | http://localhost:9090 | Métricas (scrape all APIs) |
 | Grafana | http://localhost:3000 | Dashboard (admin/admin) |
 | SQL Server | localhost:1433 | Banco de Dados (SA/<senha do .env>) |
 
@@ -638,7 +917,37 @@ docker exec redis redis-cli TTL "fiap-catalog:jogos:all"
 
 Passo a passo completo: ver README do `fiap-catalog-api` (seção **Como testar Redis e MongoDB**).
 
-### ✅ Observabilidade — Opção A (Prometheus + Grafana)
+### ✅ Verificações Rápidas
+
+```bash
+# Kong operacional?
+curl http://localhost:8001/status | jq
+
+# Elasticsearch indexado?
+curl http://localhost:9200/_cluster/health | jq
+
+# RabbitMQ conectado?
+curl http://localhost:15672/api/vhosts -u admin:<senha do .env> | jq
+
+# Prometheus coletando?
+curl http://localhost:9090/api/v1/targets | jq
+
+# Redis com dados?
+docker exec redis redis-cli DBSIZE
+
+# MongoDB operacional?
+docker exec mongodb mongosh --eval "db.adminCommand('ping')"
+
+# Logs de uma API?
+docker-compose logs -f catalog-api
+
+# Verificar rede Docker
+docker network ls | grep fiap
+```
+
+---
+
+## 📊 Observabilidade (Prometheus + Grafana)
 
 Stack escolhida: **código aberto (Opção A)** do Tech Challenge Fase 3.
 
@@ -750,37 +1059,41 @@ kubectl port-forward svc/rabbitmq 15672:15672 -n fiap-cloud-games
 
 | Projeto | Descrição | Status |
 |---------|-----------|--------|
-| users-api | API de Usuários e Autenticação | ✅ Cache Redis |
+| users-api | API de Usuários e Autenticação | ✅ Cache Redis + RabbitMQ |
 | notifications-function | Azure Functions (RabbitMQ triggers) | ✅ Serverless |
-| catalog-api | API de Catálogo de Jogos | ✅ Cache Redis + MongoDB Avaliacoes |
+| catalog-api | API de Catálogo de Jogos | ✅ Cache Redis + MongoDB + Elasticsearch |
 | payments-api | API de Pagamentos | ✅ Cache Redis |
 | kong | API Gateway (ponto de entrada único) | ✅ Operacional (JWT ativo via kong.yml) |
 | konga | UI de gerenciamento Kong | ✅ Operacional |
 | prometheus | Coleta de métricas | ✅ 15s scrape interval |
 | grafana | Visualização de métricas | ✅ 3 Dashboards pré-configurados |
-| rabbitmq | Message Broker | ✅ Integrado com todas APIs |
-| redis | Cache distribuído | ✅ Todos serviços |
-| mongodb | NoSQL - Avaliações | ✅ Operacional |
-| sqlserver | Banco de Dados Relacional | ✅ Users + Catalog |
+| rabbitmq | Message Broker | ✅ 2 filas (usuario-criado, pagamento-processado) |
+| redis | Cache distribuído | ✅ Todos serviços (TTL variável) |
+| mongodb | NoSQL - Avaliações | ✅ Operacional com índices |
+| elasticsearch | Full-text search - Jogos | ✅ Operacional (índice: jogos) |
+| sqlserver | Banco de Dados Relacional | ✅ Users + Catalog + Payments |
 
 ---
 
 ## 📈 Status de Implementação (Sprint Atual)
 
-### ✅ **COMPLETO**
+### ✅ **OPERACIONAL**
 
-- **API Gateway**: Kong + Konga roteando todas 4 APIs via port 8000
-- **JWT Plugin Kong**: config declarativa versionada (`k8s/kong/kong.yml`), protegendo Users API e Catalog API
-- **Observabilidade**: Prometheus + Grafana com 3 dashboards (Latency, Throughput, Errors)
-- **Cache Distribuído**: Redis em produção para Users, Catalog e Payments APIs
-- **Persistência NoSQL**: MongoDB com Avaliacoes implementadas e índice JogoId
-- **Message Broker**: RabbitMQ integrado em docker-compose e k8s
+- ✅ Kong API Gateway com JWT validation
+- ✅ Users API + Cache Redis (30min TTL)
+- ✅ Catalog API + Redis (1h TTL) + MongoDB + Elasticsearch
+- ✅ Payments API + Redis (15min TTL) + LocalStack (dev)
+- ✅ RabbitMQ com 2 filas de eventos (usuario-criado, pagamento-processado-notifications)
+- ✅ Prometheus + Grafana (3 dashboards + scrape 15s)
+- ✅ Elasticsearch (índice: jogos, full-text search)
+- ✅ Notifications (Azure Functions Isolated)
 
-### ❌ **PENDENTE**
+### 🔜 **PRÓXIMAS PRIORIDADES**
 
-- **Payments no Gateway**: adicionar rotas em `kong.yml` quando Payments tiver controllers HTTP
-- **Testes K8s**: Validar em cluster real (4h)
-- **Entrega**: vídeo + relatório técnico
+1. **Testes em Kubernetes** - Validar em cluster real (4h)
+2. **Rotas Payments no Kong** - Quando controllers HTTP estáveis
+3. **ELK Stack completo** - Logs centralizados (Elasticsearch + Kibana)
+4. **Entrega** - Vídeo + relatório técnico
 
 ### ✅ Notifications serverless
 
@@ -828,6 +1141,7 @@ Os projetos podem se conectar ao RabbitMQ usando:
 | RabbitMQ | http://localhost:15672 | admin / <senha do .env> |
 | Redis | localhost:6379 | ➜ redis-cli |
 | MongoDB | localhost:27017 | admin / <senha do .env> |
+| Elasticsearch | http://localhost:9200 | ➜ curl |
 
 ### Validação de Funcionamento
 
@@ -858,6 +1172,6 @@ Os projetos podem se conectar ao RabbitMQ usando:
 
 ---
 
-**Última atualização**: 2026-09-01  
-**Status**: ✅ 70% Completo | ❌ 30% Pendente  
+**Última atualização**: 2026-11-04  
+**Status**: ✅ 85% Completo | ⏳ 15% Roadmap  
 **Mantido por**: Time DevOps FIAP
